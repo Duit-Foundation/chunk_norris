@@ -32,7 +32,7 @@ final class ChunkObject<T> {
     T Function(Map<String, dynamic>) deserializer, {
     Map<String, ChunkField>? chunkFields,
   }) {
-    const resolver = PlaceholderResolver();
+    final resolver = PlaceholderResolver();
     final stateManager = ChunkStateManager();
     final processor = ChunkProcessor(stateManager);
 
@@ -46,7 +46,7 @@ final class ChunkObject<T> {
 
     final placeholders = resolver.findPlaceholders(json);
 
-    // Регистрируем чанк поля если предоставлены
+    // Register chunk fields if provided
     if (chunkFields != null) {
       typedJson._chunkFields = chunkFields
         ..forEach((key, value) {
@@ -62,19 +62,19 @@ final class ChunkObject<T> {
       }
     }
 
-    // Подписываемся на обновления процессора
+    // Subscribe to processor updates
     processor.dataStream.listen(typedJson._handleChunkUpdate);
 
     return typedJson;
   }
 
-  /// Исходный JSON
+  /// Original JSON
   Map<String, dynamic> get initialJson => _initialJson;
 
-  /// Зарегистрированные чанк поля
+  /// Registered chunk fields
   Map<String, ChunkField> get chunkFields => Map.unmodifiable(_chunkFields);
 
-  /// Поток чанков с предварительным парсингом: если для ключа есть ChunkField с десериализатором, то парсит значение
+  /// Stream of chunks with preliminary parsing: if there is a ChunkField with deserializer for the key, then parses the value
   Stream<dynamic> get _chunkUpdateStream => _processor.dataStream.map((chunk) {
         dynamic result;
         chunk.forEach((key, value) {
@@ -155,37 +155,37 @@ final class ChunkObject<T> {
         onDone: onDone,
       );
 
-  /// Поток обновлений типизированных данных
-  /// Эмитит события при каждом обновлении чанка
+  /// Stream of typed data updates
+  /// Emits events on each chunk update
   Stream<T> get _typedUpdateStream => _processor.dataStream
       .map((_) => getDataOrNull())
       .where((data) => data != null)
       .cast<T>();
 
-  /// Поток, который эмитит только когда ВСЕ чанки разрешены
+  /// Stream that emits only when ALL chunks are resolved
   Stream<T> get _fullyResolvedStream => _processor.dataStream
       .skipWhile((_) => !allChunksResolved)
       .map((_) => getData());
 
-  /// Поток состояний чанков
+  /// Stream of chunk states
   Stream<Map<String, ChunkState>> get _chunkStatesStream =>
       _processor.dataStream.map((_) => _getChunkStates());
 
-  /// Проверяет, все ли чанки разрешены
+  /// Checks if all chunks are resolved
   bool get allChunksResolved {
     final states = _getChunkStates();
     return states.values.every((state) => state == ChunkState.loaded);
   }
 
-  /// Регистрирует чанк поле для типизированного доступа
+  /// Registers chunk field for typed access
   void registerChunkField(String key, ChunkField field) {
     _chunkFields[key] = field;
     _stateManager.registerPlaceholder(field.placeholderId);
     _invalidateCache();
   }
 
-  /// Получает чанк поле по ключу
-  ChunkField getChunkField<V>(String key) {
+  /// Gets chunk field by key
+  ChunkField<V> getChunkField<V>(String key) {
     final field = _chunkFields[key];
     if (field is ChunkField<V>) {
       return field;
@@ -193,15 +193,15 @@ final class ChunkObject<T> {
     throw StateError('Chunk field $key not found');
   }
 
-  /// Обрабатывает входящий чанк данных
+  /// Processes incoming chunk data
   void processChunk(Map<String, dynamic> chunk) =>
       _processor.processChunk(chunk);
 
-  /// Обрабатывает поток чанков
+  /// Processes chunk stream
   void processChunkStream(Stream<String> chunkStream) =>
       _processor.processChunkStream(chunkStream);
 
-  /// Получает типизированные данные (throw если не все чанки загружены)
+  /// Gets typed data (throws if not all chunks are loaded)
   T getData() {
     if (_isCacheValid && _cachedResult != null) {
       return _cachedResult!;
@@ -218,19 +218,19 @@ final class ChunkObject<T> {
     }
   }
 
-  /// Получает типизированные данные или null если не готово
+  /// Gets typed data or null if not ready
   T? getDataOrNull() {
     try {
-      // Проверяем, можно ли десериализовать с текущими данными
+      // Check if we can deserialize with current data
       final resolvedJson = _getResolvedJson();
 
-      // Проверяем, остались ли неразрешенные плейсхолдеры
+      // Check if there are unresolved placeholders
       final hasUnresolvedPlaceholders =
           _resolver.findPlaceholders(resolvedJson).isNotEmpty;
 
-      // Если есть неразрешенные плейсхолдеры, пытаемся частичную десериализацию
+      // If there are unresolved placeholders, try partial deserialization
       if (hasUnresolvedPlaceholders) {
-        // Проверяем, есть ли хотя бы базовые поля для десериализации
+        // Check if there are at least basic fields for deserialization
         if (!_hasMinimalDataForDeserialization(resolvedJson)) {
           return null;
         }
@@ -238,7 +238,7 @@ final class ChunkObject<T> {
 
       final result = _deserializer(resolvedJson);
 
-      // Обновляем кеш только если все чанки разрешены
+      // Update cache only if all chunks are resolved
       if (!hasUnresolvedPlaceholders) {
         _cachedResult = result;
         _isCacheValid = true;
@@ -250,23 +250,23 @@ final class ChunkObject<T> {
     }
   }
 
-  /// Проверяет, есть ли минимальные данные для десериализации
+  /// Checks if there are minimal data for deserialization
   bool _hasMinimalDataForDeserialization(Map<String, dynamic> json) {
-    // Проверяем, что основные поля (не плейсхолдеры) присутствуют
-    // Это помогает избежать десериализации с критически важными плейсхолдерами
+    // Check that main fields (not placeholders) are present
+    // This helps avoid deserialization with critically important placeholders
     return json.values.any((value) => !_resolver.isPlaceholder(value));
   }
 
-  /// Получает карту состояний всех чанков
+  /// Gets a map of all chunk states
   Map<String, ChunkState> _getChunkStates() {
     final states = <String, ChunkState>{};
 
-    // Состояния из зарегистрированных полей
+    // States from registered fields
     for (final entry in _chunkFields.entries) {
       states[entry.key] = entry.value.state;
     }
 
-    // Состояния из placeholder resolver (fallback)
+    // States from placeholder resolver (fallback)
     final placeholders = _resolver.findPlaceholders(_initialJson);
     for (final placeholderId in placeholders) {
       final state = _stateManager.getChunkState(placeholderId);
@@ -276,17 +276,17 @@ final class ChunkObject<T> {
     return states;
   }
 
-  /// Ожидает загрузки всех чанков и возвращает типизированные данные
+  /// Awaits all chunks to load and returns typed data
   Future<T> waitForData() async {
     if (allChunksResolved) {
       return getData();
     }
 
-    // Ждем все поля чанков
+    // Wait for all chunk fields
     if (_chunkFields.isNotEmpty) {
       await Future.wait(_chunkFields.values.map((field) => field.future));
     } else {
-      // Fallback к обычному ожиданию
+      // Fallback to regular waiting
       final placeholders = _resolver.findPlaceholders(_initialJson);
       final futures =
           placeholders.map((id) => _stateManager.getChunkFuture(id));
@@ -296,25 +296,25 @@ final class ChunkObject<T> {
     return getData();
   }
 
-  /// Проверяет, готово ли конкретное поле
+  /// Checks if a specific field is ready
   bool isFieldReady(String fieldKey) {
     final field = _chunkFields[fieldKey];
     return field?.isResolved ?? false;
   }
 
-  /// Получает состояние конкретного поля
+  /// Gets the state of a specific field
   ChunkState getFieldState(String fieldKey) {
     final field = _chunkFields[fieldKey];
     return field?.state ?? ChunkState.pending;
   }
 
-  /// Получает ошибку поля (если есть)
+  /// Gets field error (if any)
   Object? getFieldError(String fieldKey) {
     final field = _chunkFields[fieldKey];
     return field?.error;
   }
 
-  /// Сбрасывает все состояния
+  /// Resets all states
   void clear() {
     _stateManager.clear();
     for (final field in _chunkFields.values) {
@@ -323,14 +323,14 @@ final class ChunkObject<T> {
     _invalidateCache();
   }
 
-  /// Освобождает ресурсы
+  /// Releases resources
   void dispose() {
     _processor.close();
     _stateManager.clear();
     _chunkFields.clear();
   }
 
-  /// Обрабатывает обновление чанка
+  /// Handles chunk update
   void _handleChunkUpdate(Map<String, dynamic> chunk) {
     _invalidateCache();
 
@@ -343,13 +343,13 @@ final class ChunkObject<T> {
       if (field != null && !field.isResolved) {
         field.resolve(entry.value);
       } else {
-        // Если поле не было явно создано, просто обновляем stateManager
+        // If field was not explicitly created, just update stateManager
         _stateManager.resolvePlaceholder(entry.key, entry.value);
       }
     }
   }
 
-  /// Получает разрешенный JSON
+  /// Gets resolved JSON
   Map<String, dynamic> _getResolvedJson() {
     final resolved = _resolver.resolvePlaceholders(_initialJson, _stateManager);
 
@@ -362,7 +362,7 @@ final class ChunkObject<T> {
     }
   }
 
-  /// Инвалидирует кеш
+  /// Invalidates cache
   void _invalidateCache() {
     _isCacheValid = false;
     _cachedResult = null;

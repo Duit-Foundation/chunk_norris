@@ -123,7 +123,7 @@ final class ChunkField<T> {
   static ChunkField<String> string(String placeholderId) =>
       ChunkField<String>(placeholderId, (data) => data.toString());
 
-  /// Создает поле для числа
+  /// Creates a field for integer
   static ChunkField<int> integer(String placeholderId) =>
       ChunkField<int>(placeholderId, (data) {
         if (data is int) return data;
@@ -131,7 +131,7 @@ final class ChunkField<T> {
         throw FormatException('Cannot parse $data as int');
       });
 
-  /// Создает поле для числа с плавающей точкой
+  /// Creates a field for floating-point number
   static ChunkField<double> decimal(String placeholderId) =>
       ChunkField<double>(placeholderId, (data) {
         if (data is double) return data;
@@ -140,7 +140,7 @@ final class ChunkField<T> {
         throw FormatException('Cannot parse $data as double');
       });
 
-  /// Создает поле для булева значения
+  /// Creates a field for boolean value
   static ChunkField<bool> boolean(String placeholderId) =>
       ChunkField<bool>(placeholderId, (data) {
         if (data is bool) return data;
@@ -149,7 +149,7 @@ final class ChunkField<T> {
         throw FormatException('Cannot parse $data as bool');
       });
 
-  /// Создает поле для списка с десериализацией элементов
+  /// Creates a field for list with element deserialization
   static ChunkField<List<T>> list<T>(
     String placeholderId,
     T Function(dynamic) itemDeserializer,
@@ -161,7 +161,7 @@ final class ChunkField<T> {
         return data.map(itemDeserializer).toList();
       });
 
-  /// Создает поле для объекта с кастомной десериализацией
+  /// Creates a field for object with custom deserialization
   static ChunkField<T> object<T>(
     String placeholderId,
     T Function(Map<String, dynamic>) deserializer,

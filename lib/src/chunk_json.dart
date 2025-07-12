@@ -42,7 +42,7 @@ final class ChunkJson {
 
   /// Create a ChunkJson instance from an initial JSON.
   factory ChunkJson.fromJson(Map<String, dynamic> json) {
-    const resolver = PlaceholderResolver();
+    final resolver = PlaceholderResolver();
     final stateManager = ChunkStateManager();
     final processor = ChunkProcessor(stateManager);
     final chunkJson = ChunkJson._(
@@ -153,33 +153,33 @@ final class ChunkJson {
     _stateManager.clear();
   }
 
-  /// Поддержка [] оператора для доступа к значениям
+  /// Support for [] operator for accessing values
   dynamic operator [](String key) => getValue(key);
 
-  /// Поддержка []= оператора для установки значений
+  /// Support for []= operator for setting values
   void operator []=(String key, dynamic value) {
     _json[key] = value;
   }
 
-  /// Поддержка containsKey
+  /// Support for containsKey
   bool containsKey(String key) => _json.containsKey(key);
 
-  /// Получить все ключи
+  /// Get all keys
   Iterable<String> get keys => _json.keys;
 
-  /// Получить все значения (разрешенные)
+  /// Get all values (resolved)
   Iterable<dynamic> get values => _json.keys.map((key) => getValue(key));
 
-  /// Проверить, пуст ли JSON
+  /// Check if JSON is empty
   bool get isEmpty => _json.isEmpty;
 
-  /// Проверить, не пуст ли JSON
+  /// Check if JSON is not empty
   bool get isNotEmpty => _json.isNotEmpty;
 
-  /// Получить количество ключей
+  /// Get number of keys
   int get length => _json.length;
 
-  /// Проверить, разрешены ли все чанки
+  /// Check if all chunks are resolved
   bool get allChunksResolved {
     final placeholders = _resolver.findPlaceholders(_json);
 
