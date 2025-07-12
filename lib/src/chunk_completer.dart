@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:chunk_norris/src/state.dart';
 
 /// Completer для управления ожиданием чанков
-class ChunkCompleter<T> {
+final class ChunkCompleter<T> {
   final Completer<T> _completer = Completer<T>();
   ChunkState _state = ChunkState.pending;
   Object? _error;
