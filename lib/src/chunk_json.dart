@@ -136,9 +136,6 @@ final class ChunkJson {
   /// Get the stream of data updates.
   Stream<Map<String, dynamic>> get updateStream => _processor.dataStream;
 
-  /// Get the stream of errors.
-  Stream<String> get errorStream => _processor.errorStream;
-
   /// Process an incoming chunk of data.
   void processChunk(Map<String, dynamic> chunk) =>
       _processor.processChunk(chunk);

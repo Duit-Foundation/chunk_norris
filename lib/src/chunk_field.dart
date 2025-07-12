@@ -1,6 +1,35 @@
 import 'dart:async';
 
+import 'package:meta/meta.dart';
+
 import 'state.dart';
+
+/// [ChunkField] represents a single field in a chunked JSON structure that may be loaded asynchronously.
+///
+/// It tracks the state of the field (pending, loaded, or error), holds the resolved value (if available),
+/// and provides a [Future] for awaiting the value. Optionally, a deserializer can be provided to convert
+/// the raw chunk data into the desired type.
+///
+/// Typical usage:
+/// ```dart
+/// final field = ChunkField<String>('1', (data) => data as String);
+/// // Later, when the chunk arrives:
+/// field.resolve('some data');
+/// // Access the value:
+/// final value = field.value; // 'some data'
+/// ```
+///
+/// - [placeholderId]: The unique identifier for the placeholder/chunk.
+/// - [deserializer]: Optional function to convert the raw chunk data to type [T].
+/// - [state]: The current loading state of the field.
+/// - [isResolved]: Whether the field has been successfully loaded.
+/// - [hasError]: Whether the field failed to load.
+/// - [error]: The error object if loading failed.
+/// - [value]: The resolved value (throws if not loaded or error).
+/// - [valueOrNull]: The resolved value or null if not loaded or error.
+/// - [future]: A [Future] that completes when the value is loaded or fails with error.
+///
+/// Use [resolve] to provide the loaded data, or [reject] to signal an error.
 
 final class ChunkField<T> {
   final String _placeholderId;
@@ -22,12 +51,16 @@ final class ChunkField<T> {
 
   Object? get error => _error;
 
+  @internal
+  T Function(dynamic)? get deserializer => _deserializer;
+
   T get value {
     if (_state == ChunkState.error) {
       throw StateError('Chunk failed to load: $_error');
     }
     if (_state != ChunkState.loaded) {
-      throw StateError('Chunk not yet resolved. Use valueOrNull or await future.');
+      throw StateError(
+          'Chunk not yet resolved. Use valueOrNull or await future.');
     }
     return _value as T;
   }
@@ -41,11 +74,11 @@ final class ChunkField<T> {
 
     try {
       final T typedValue;
-      
-      if (_deserializer != null) {
-        typedValue = _deserializer!(data);
-      } else if (data is T) {
+
+      if (data is T) {
         typedValue = data;
+      } else if (_deserializer != null) {
+        typedValue = _deserializer(data);
       } else {
         throw ArgumentError(
           'Cannot cast ${data.runtimeType} to $T. '
@@ -57,11 +90,11 @@ final class ChunkField<T> {
       _state = ChunkState.loaded;
       _completer.complete(typedValue);
     } catch (error, stackTrace) {
-      reject(error, stackTrace);
+      _reject(error, stackTrace);
     }
   }
 
-  void reject(Object error, [StackTrace? stackTrace]) {
+  void _reject(Object error, [StackTrace? stackTrace]) {
     if (_completer.isCompleted) return;
 
     _error = error;
@@ -86,9 +119,7 @@ final class ChunkField<T> {
         return 'ChunkField<$T>(error: $_error)';
     }
   }
-}
 
-sealed class ChunkFieldHelpers {
   static ChunkField<String> string(String placeholderId) =>
       ChunkField<String>(placeholderId, (data) => data.toString());
 
@@ -143,4 +174,4 @@ sealed class ChunkFieldHelpers {
         }
         return deserializer(data);
       });
-} 
+}

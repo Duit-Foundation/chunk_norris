@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:meta/meta.dart';
+import 'package:collection/collection.dart';
 
 import 'chunk_state_manager.dart';
 import 'placeholder_resolver.dart';
@@ -8,31 +8,6 @@ import 'processor.dart';
 import 'state.dart';
 import 'chunk_field.dart';
 
-extension type ReadOnlyMap<K, V>(Map<K, V> map) implements Map<K, V> {
-  operator []=(K key, V value) => throw UnimplementedError();
-  @redeclare
-  void addAll(Map<K, V> other) => throw UnimplementedError();
-
-  @redeclare
-  void remove(K key) => throw UnimplementedError();
-
-  @redeclare
-  void clear() => throw UnimplementedError();
-
-  @redeclare
-  void update(K key, V value) => throw UnimplementedError();
-
-  @redeclare
-  void updateAll(Map<K, V> other) => throw UnimplementedError();
-
-  @redeclare
-  void removeWhere(bool Function(K key, V value) test) =>
-      throw UnimplementedError();
-}
-
-/// Типизированная версия ChunkJson для полной типобезопасности
-///
-/// Обеспечивает автоматическую десериализацию типов
 final class ChunkObject<T> {
   final Map<String, dynamic> _initialJson;
   final T Function(Map<String, dynamic>) _deserializer;
@@ -52,7 +27,6 @@ final class ChunkObject<T> {
     this._resolver,
   );
 
-  /// Создает типизированный ChunkJson из JSON и десериализатора
   factory ChunkObject.fromJson(
     Map<String, dynamic> json,
     T Function(Map<String, dynamic>) deserializer, {
@@ -70,24 +44,26 @@ final class ChunkObject<T> {
       resolver,
     );
 
+    final placeholders = resolver.findPlaceholders(json);
+
     // Регистрируем чанк поля если предоставлены
     if (chunkFields != null) {
       typedJson._chunkFields = chunkFields
         ..forEach((key, value) {
           stateManager.registerPlaceholder(value.placeholderId);
+          placeholders.remove(value.placeholderId);
         });
+      for (final placeholderId in placeholders) {
+        stateManager.registerPlaceholder(placeholderId);
+      }
     } else {
-      // Автоматически находим плейсхолдеры
-      final placeholders = resolver.findPlaceholders(json);
       for (final placeholderId in placeholders) {
         stateManager.registerPlaceholder(placeholderId);
       }
     }
 
     // Подписываемся на обновления процессора
-    processor.dataStream.listen((chunk) {
-      typedJson._handleChunkUpdate(chunk);
-    });
+    processor.dataStream.listen(typedJson._handleChunkUpdate);
 
     return typedJson;
   }
@@ -96,37 +72,109 @@ final class ChunkObject<T> {
   Map<String, dynamic> get initialJson => _initialJson;
 
   /// Зарегистрированные чанк поля
-  ReadOnlyMap<String, ChunkField> get chunkFields => ReadOnlyMap(_chunkFields);
+  Map<String, ChunkField> get chunkFields => Map.unmodifiable(_chunkFields);
+
+  /// Поток чанков с предварительным парсингом: если для ключа есть ChunkField с десериализатором, то парсит значение
+  Stream<dynamic> get _chunkUpdateStream => _processor.dataStream.map((chunk) {
+        dynamic result;
+        chunk.forEach((key, value) {
+          final field = _chunkFields.values.firstWhereOrNull(
+            (f) => f.placeholderId == key,
+          );
+
+          if (field != null) {
+            if (field.isResolved) {
+              result = field.value;
+              return;
+            }
+
+            try {
+              result = field.deserializer!.call(value);
+            } catch (e) {
+              result = value; // fallback
+            }
+          } else {
+            result = value;
+          }
+        });
+        return result;
+      });
+
+  StreamSubscription<dynamic> listenChunkUpdate(
+    void Function(dynamic) onData, {
+    Function(Object)? onError,
+    void Function()? onDone,
+  }) =>
+      _chunkUpdateStream.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+      );
+
+  StreamSubscription<T> listenObjectResolve(
+    void Function(T) onData, {
+    Function(Object)? onError,
+    void Function()? onDone,
+  }) =>
+      _fullyResolvedStream.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+      );
+
+  StreamSubscription<dynamic> listenRawChunkUpdate(
+    void Function(dynamic) onData, {
+    Function(Object)? onError,
+    void Function()? onDone,
+  }) =>
+      _processor.dataStream.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+      );
+
+  StreamSubscription<T> listenObjectUpdate(
+    void Function(T) onData, {
+    Function(Object)? onError,
+    void Function()? onDone,
+  }) =>
+      _typedUpdateStream.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+      );
+
+  StreamSubscription<Map<String, ChunkState>> listenChunkStates(
+    void Function(Map<String, ChunkState>) onData, {
+    Function(Object)? onError,
+    void Function()? onDone,
+  }) =>
+      _chunkStatesStream.listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+      );
 
   /// Поток обновлений типизированных данных
   /// Эмитит события при каждом обновлении чанка
-  Stream<T> get typedUpdateStream => _processor.dataStream
-      .map((_) => getTypedDataOrNull())
+  Stream<T> get _typedUpdateStream => _processor.dataStream
+      .map((_) => getDataOrNull())
       .where((data) => data != null)
       .cast<T>();
 
   /// Поток, который эмитит только когда ВСЕ чанки разрешены
-  Stream<T> get fullyResolvedStream => _processor.dataStream
-      .where((_) => allChunksResolved)
-      .map((_) => getTypedData());
+  Stream<T> get _fullyResolvedStream => _processor.dataStream
+      .skipWhile((_) => !allChunksResolved)
+      .map((_) => getData());
 
   /// Поток состояний чанков
-  Stream<Map<String, ChunkState>> get chunkStatesStream =>
+  Stream<Map<String, ChunkState>> get _chunkStatesStream =>
       _processor.dataStream.map((_) => _getChunkStates());
-
-  /// Поток ошибок
-  Stream<String> get errorStream => _processor.errorStream;
 
   /// Проверяет, все ли чанки разрешены
   bool get allChunksResolved {
-    if (_chunkFields.isNotEmpty) {
-      return _chunkFields.values.every((field) => field.isResolved);
-    }
-
-    // Fallback к обычной проверке плейсхолдеров
-    final placeholders = _resolver.findPlaceholders(_initialJson);
-    return placeholders
-        .every((id) => _stateManager.getChunkState(id) == ChunkState.loaded);
+    final states = _getChunkStates();
+    return states.values.every((state) => state == ChunkState.loaded);
   }
 
   /// Регистрирует чанк поле для типизированного доступа
@@ -137,40 +185,24 @@ final class ChunkObject<T> {
   }
 
   /// Получает чанк поле по ключу
-  ChunkField<V>? getChunkField<V>(String key) {
+  ChunkField getChunkField<V>(String key) {
     final field = _chunkFields[key];
     if (field is ChunkField<V>) {
       return field;
     }
-    return null;
+    throw StateError('Chunk field $key not found');
   }
 
   /// Обрабатывает входящий чанк данных
-  void processChunk(Map<String, dynamic> chunk) {
-    _processor.processChunk(chunk);
-  }
+  void processChunk(Map<String, dynamic> chunk) =>
+      _processor.processChunk(chunk);
 
   /// Обрабатывает поток чанков
-  void processChunkStream(Stream<String> chunkStream) {
-    _processor.processChunkStream(chunkStream);
-  }
-
-  /// Обрабатывает типизированный чанк
-  void processTypedChunk<V>(String chunkId, V data) {
-    final field = _chunkFields.values
-        .where((f) => f.placeholderId == chunkId)
-        .firstOrNull;
-
-    if (field != null) {
-      field.resolve(data);
-    }
-
-    // Также обрабатываем через обычный процессор
-    processChunk({chunkId: data});
-  }
+  void processChunkStream(Stream<String> chunkStream) =>
+      _processor.processChunkStream(chunkStream);
 
   /// Получает типизированные данные (throw если не все чанки загружены)
-  T getTypedData() {
+  T getData() {
     if (_isCacheValid && _cachedResult != null) {
       return _cachedResult!;
     }
@@ -187,7 +219,7 @@ final class ChunkObject<T> {
   }
 
   /// Получает типизированные данные или null если не готово
-  T? getTypedDataOrNull() {
+  T? getDataOrNull() {
     try {
       // Проверяем, можно ли десериализовать с текущими данными
       final resolvedJson = _getResolvedJson();
@@ -237,18 +269,17 @@ final class ChunkObject<T> {
     // Состояния из placeholder resolver (fallback)
     final placeholders = _resolver.findPlaceholders(_initialJson);
     for (final placeholderId in placeholders) {
-      if (!states.values.any((state) => state != ChunkState.pending)) {
-        states[placeholderId] = _stateManager.getChunkState(placeholderId);
-      }
+      final state = _stateManager.getChunkState(placeholderId);
+      states[placeholderId] = state;
     }
 
     return states;
   }
 
   /// Ожидает загрузки всех чанков и возвращает типизированные данные
-  Future<T> waitForTypedData() async {
+  Future<T> waitForData() async {
     if (allChunksResolved) {
-      return getTypedData();
+      return getData();
     }
 
     // Ждем все поля чанков
@@ -262,7 +293,7 @@ final class ChunkObject<T> {
       await Future.wait(futures);
     }
 
-    return getTypedData();
+    return getData();
   }
 
   /// Проверяет, готово ли конкретное поле
@@ -296,6 +327,7 @@ final class ChunkObject<T> {
   void dispose() {
     _processor.close();
     _stateManager.clear();
+    _chunkFields.clear();
   }
 
   /// Обрабатывает обновление чанка
@@ -310,6 +342,9 @@ final class ChunkObject<T> {
 
       if (field != null && !field.isResolved) {
         field.resolve(entry.value);
+      } else {
+        // Если поле не было явно создано, просто обновляем stateManager
+        _stateManager.resolvePlaceholder(entry.key, entry.value);
       }
     }
   }
@@ -336,40 +371,13 @@ final class ChunkObject<T> {
   @override
   String toString() {
     if (allChunksResolved) {
-      return 'TypedChunkJson<$T>(resolved: ${getTypedData()})';
+      return 'ChunkObject<$T>(resolved: ${getData()})';
     } else {
       final pendingFields = _chunkFields.entries
           .where((entry) => !entry.value.isResolved)
           .map((entry) => entry.key)
           .toList();
-      return 'TypedChunkJson<$T>(pending: $pendingFields)';
+      return 'ChunkObject<$T>(pending: $pendingFields)';
     }
   }
 }
-
-// /// Builder для удобного создания типизированных ChunkJson
-// class TypedChunkJsonBuilder<T> {
-//   final Map<String, dynamic> _json = {};
-//   final Map<String, ChunkField> _fields = {};
-//   final T Function(Map<String, dynamic>) _deserializer;
-
-//   TypedChunkJsonBuilder(this._deserializer);
-
-//   /// Добавляет обычное поле
-//   TypedChunkJsonBuilder<T> addField(String key, dynamic value) {
-//     _json[key] = value;
-//     return this;
-//   }
-
-//   /// Добавляет типизированное чанк поле
-//   TypedChunkJsonBuilder<T> addChunkField<V>(String key, ChunkField<V> field) {
-//     _json[key] = '\$${field.placeholderId}';
-//     _fields[key] = field;
-//     return this;
-//   }
-
-//   /// Строит TypedChunkJson
-//   ChunkObject<T> build() {
-//     return ChunkObject.fromJson(_json, _deserializer, chunkFields: _fields);
-//   }
-// }

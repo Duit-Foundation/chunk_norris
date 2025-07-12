@@ -3,21 +3,19 @@ import 'dart:convert';
 
 import 'package:chunk_norris/src/chunk_state_manager.dart';
 
-/// Процессор чанков
+typedef ChunkResolver = void Function(
+  String chunkId,
+  dynamic data,
+);
+
 final class ChunkProcessor {
   final ChunkStateManager _stateManager;
-  final StreamController<Map<String, dynamic>> _dataController =
-      StreamController<Map<String, dynamic>>.broadcast();
-  final StreamController<String> _errorController =
-      StreamController<String>.broadcast();
+  final _dataController = StreamController<Map<String, dynamic>>.broadcast();
 
   ChunkProcessor(this._stateManager);
 
   /// Поток обновленных данных
   Stream<Map<String, dynamic>> get dataStream => _dataController.stream;
-
-  /// Поток ошибок
-  Stream<String> get errorStream => _errorController.stream;
 
   /// Обработать чанк данных
   void processChunk(Map<String, dynamic> chunk) {
@@ -29,8 +27,8 @@ final class ChunkProcessor {
 
       // Уведомить о новых данных
       _dataController.add(chunk);
-    } catch (e) {
-      _errorController.add('Error processing chunk: $e');
+    } catch (e, s) {
+      _dataController.addError(e, s);
     }
   }
 
@@ -41,12 +39,12 @@ final class ChunkProcessor {
         try {
           final chunk = jsonDecode(chunkData) as Map<String, dynamic>;
           processChunk(chunk);
-        } catch (e) {
-          _errorController.add('Error parsing chunk: $e');
+        } catch (e, s) {
+          _dataController.addError(e, s);
         }
       },
-      onError: (error) {
-        _errorController.add('Stream error: $error');
+      onError: (e, s) {
+        _dataController.addError(e, s);
       },
     );
   }
@@ -54,6 +52,5 @@ final class ChunkProcessor {
   /// Закрыть процессор
   void close() {
     _dataController.close();
-    _errorController.close();
   }
 }

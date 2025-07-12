@@ -18,17 +18,18 @@ class UserData {
   String toString() => 'UserData(address: $address, phone: $phone)';
 }
 
-// Подход с ChunkField (для более сложных случаев)
 class User {
   final String name;
   final int age;
   final UserData data;
   final Map<String, dynamic> meta;
+  final Map<String, dynamic> some;
   User({
     required this.name,
     required this.age,
     required this.data,
     required this.meta,
+    required this.some,
   });
 
   factory User.fromJson(Map<String, dynamic> json) => User(
@@ -36,32 +37,30 @@ class User {
         age: json['age'],
         data: UserData.fromJson(json['data']),
         meta: json['meta'],
+        some: json['some'],
       );
 
   @override
   String toString() =>
-      'TypedUser(name: $name, age: $age, data: $data, meta: $meta)';
+      'User(name: $name, age: $age, data: $data, meta: $meta, some: $some)';
 }
 
-void main() async {
-  // print('\n=== Пример с ChunkField ===');
-  // typedExample();
+Future<void> chunkObjectExample() async {
+  print('\n=== ChunkObject example ===');
 
-  final obj = ChunkObject.fromJson(
+  final chunkedObject = ChunkObject.fromJson(
     {
       'name': 'John Doe',
       'age': 30,
       'data': '\$1',
       'meta': '\$2',
+      'some': '\$3',
     },
     User.fromJson,
     chunkFields: {
-      'data': ChunkField<UserData>(
+      'data': ChunkField.object<UserData>(
         '1',
-        (data) {
-          print("Parsing UserData from chunk");
-          return UserData.fromJson(data);
-        },
+        (data) => UserData.fromJson(data),
       ),
       'meta': ChunkField(
         '2',
@@ -70,16 +69,28 @@ void main() async {
     },
   );
 
-  print(obj);
+  // chunkedObject.listenChunkStates(onData) listen chunk state change
+  // chunkedObject.listenChunkUpdate(onData) listen chunk update with resolved data
+  // chunkedObject.listenRawChunkUpdate(onData) listen chunk update with raw data
+  // chunkedObject.listenObjectUpdate(onData) listen root object update
 
-  obj.fullyResolvedStream.listen((user) {
-    print("New chunk: $user");
-    obj.dispose();
-  });
+  // listen when all chunks resolved
+  chunkedObject.listenObjectResolve(
+    (user) {
+      print(
+          "All chunks resolved! \n ${user.name} \n ${user.age} \n ${user.data} \n ${user.meta} \n ${user.some}");
+    },
+    onError: (error) {
+      print("Error: $error");
+    },
+    onDone: () {
+      print("Stream is done");
+    },
+  );
 
   await Future.delayed(const Duration(seconds: 1));
 
-  obj.processChunk({
+  chunkedObject.processChunk({
     '1': {
       'address': '123 Main St',
       'phone': '123-456-7890',
@@ -88,10 +99,39 @@ void main() async {
 
   await Future.delayed(const Duration(seconds: 1));
 
-  obj.processChunk({
+  chunkedObject.processChunk({
     '2': {
       'meta1': 'value1',
       'meta2': 'value2',
     },
   });
+
+  await Future.delayed(const Duration(seconds: 1));
+
+  chunkedObject.processChunk({
+    '3': {
+      'some': 'value3',
+    },
+  });
+
+  await chunkedObject.waitForData();
+  chunkedObject.dispose();
+
+  print("=" * 30);
+}
+
+Future<void> chunkJsonExample() async {
+  print('\n=== ChunkJson example ===');
+
+  final json = ChunkJson.fromJson({
+    'name': 'John Doe',
+    'age': 30,
+    'data': '\$1',
+    'meta': '\$2',
+    'some': '\$3',
+  });
+}
+
+void main() async {
+  await chunkObjectExample();
 }

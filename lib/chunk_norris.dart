@@ -3,4 +3,5 @@
 /// More dartdocs go here.
 library;
 
-export 'src/index.dart';
+export 'src/index.dart'
+    hide ChunkStateManager, PlaceholderResolver, ChunkProcessor, ChunkCompleter;
