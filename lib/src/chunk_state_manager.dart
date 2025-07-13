@@ -1,5 +1,6 @@
 import 'package:chunk_norris/src/chunk_completer.dart';
 import 'package:chunk_norris/src/state.dart';
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// A centralized state management system for handling chunk placeholders and their resolution.
@@ -334,6 +335,10 @@ final class ChunkStateManager {
   /// - Used primarily for framework integration
   @internal
   Set<String> get resolvedPlaceholderIds => _resolvedData.keys.toSet();
+
+  @internal
+  bool get hasUnresolvedData =>
+      _completers.keys.firstWhereOrNull((id) => !isResolved(id)) != null;
 
   /// Clears all tracked chunks and their associated data.
   ///

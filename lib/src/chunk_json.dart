@@ -439,10 +439,10 @@ final class ChunkJson {
   /// - Stream remains active after non-fatal errors
   /// - Proper resource cleanup on completion
   StreamSubscription<Map<String, dynamic>>? listenUpdateStream(
-    void Function(Map<String, dynamic> chunk) onData,
+    void Function(Map<String, dynamic> chunk) onData, {
     void Function(Object error)? onError,
     void Function()? onDone,
-  ) =>
+  }) =>
       _processor.dataStream.listen(
         onData,
         onError: onError,

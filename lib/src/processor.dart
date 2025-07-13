@@ -152,6 +152,22 @@ final class ChunkProcessor {
     }
   }
 
+  /// Adds an error to the data controller.
+  ///
+  /// This method is used to add an error to the data controller, which will
+  /// be forwarded to all listeners.
+  ///
+  /// ## Parameters
+  /// - [error]: The error to add to the data controller
+  /// - [stackTrace]: The stack trace of the error
+  ///
+  /// ## Usage
+  /// ```dart
+  /// processor.addError(error);
+  /// ```
+  void addError(Object error, [StackTrace? stackTrace]) =>
+      _dataController.addError(error, stackTrace);
+
   /// Processes a stream of JSON-encoded chunk data strings.
   ///
   /// This method subscribes to a stream of JSON strings, automatically parses
@@ -198,21 +214,17 @@ final class ChunkProcessor {
   /// - The stream subscription is managed internally
   /// - Multiple stream subscriptions can be active simultaneously
   /// - Call [close] to properly clean up resources when done
-  void processChunkStream(Stream<String> chunkStream) {
-    chunkStream.listen(
-      (chunkData) {
-        try {
-          final chunk = jsonDecode(chunkData) as Map<String, dynamic>;
-          processChunk(chunk);
-        } catch (e, s) {
-          _dataController.addError(e, s);
-        }
-      },
-      onError: (e, s) {
-        _dataController.addError(e, s);
-      },
-    );
-  }
+  void processChunkStream(Stream<String> chunkStream) => chunkStream.listen(
+        (chunkData) {
+          try {
+            final chunk = jsonDecode(chunkData) as Map<String, dynamic>;
+            processChunk(chunk);
+          } catch (e, s) {
+            _dataController.addError(e, s);
+          }
+        },
+        onError: (e, s) => _dataController.addError(e, s),
+      );
 
   /// Closes the processor and cleans up all resources.
   ///
@@ -225,7 +237,5 @@ final class ChunkProcessor {
   /// - Closes the internal data stream controller
   /// - Notifies all listeners that the stream has ended
   /// - Releases internal resources
-  void close() {
-    _dataController.close();
-  }
+  void close() => _dataController.close();
 }

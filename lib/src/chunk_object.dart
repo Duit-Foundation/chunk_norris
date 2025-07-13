@@ -230,7 +230,7 @@ final class ChunkObject<T> {
 
     // Register chunk fields if provided
     if (chunkFields != null) {
-      jsonObject._chunkFields = chunkFields
+      jsonObject._chunkFields = Map<String, ChunkField>.from(chunkFields)
         ..forEach((key, value) {
           stateManager.registerPlaceholder(value.placeholderId);
           placeholders.remove(value.placeholderId);
@@ -239,6 +239,7 @@ final class ChunkObject<T> {
         stateManager.registerPlaceholder(placeholderId);
       }
     } else {
+      jsonObject._chunkFields = <String, ChunkField>{};
       for (final placeholderId in placeholders) {
         stateManager.registerPlaceholder(placeholderId);
       }
@@ -417,6 +418,11 @@ final class ChunkObject<T> {
     }
 
     final resolvedJson = _getResolvedJson();
+
+    if (_stateManager.hasUnresolvedData) {
+      throw StateError('Cannot get data: some chunks are not yet resolved');
+    }
+
     try {
       final result = _deserializer(resolvedJson);
       _cachedResult = result;
@@ -437,21 +443,16 @@ final class ChunkObject<T> {
       final hasUnresolvedPlaceholders =
           _resolver.findPlaceholders(resolvedJson).isNotEmpty;
 
-      // If there are unresolved placeholders, try partial deserialization
+      // If there are unresolved placeholders, return null
       if (hasUnresolvedPlaceholders) {
-        // Check if there are at least basic fields for deserialization
-        if (!_hasMinimalDataForDeserialization(resolvedJson)) {
-          return null;
-        }
+        return null;
       }
 
       final result = _deserializer(resolvedJson);
 
-      // Update cache only if all chunks are resolved
-      if (!hasUnresolvedPlaceholders) {
-        _cachedResult = result;
-        _isCacheValid = true;
-      }
+      // Update cache
+      _cachedResult = result;
+      _isCacheValid = true;
 
       return result;
     } catch (_) {
@@ -542,16 +543,22 @@ final class ChunkObject<T> {
 
     // Обновляем соответствующие чанк поля
     for (final entry in chunk.entries) {
-      final field = _chunkFields.values
-          .where((f) => f.placeholderId == entry.key)
-          .firstOrNull;
+      final field = _chunkFields.entries
+          .firstWhereOrNull(
+            (f) => f.key == entry.key,
+          )
+          ?.value;
 
       if (field != null && !field.isResolved) {
-        field.resolve(entry.value);
-      } else {
-        // If field was not explicitly created, just update stateManager
-        _stateManager.resolvePlaceholder(entry.key, entry.value);
+        try {
+          field.resolve(entry.value);
+        } catch (e, s) {
+          _processor.addError(e, s);
+        }
       }
+
+      // Always update stateManager for placeholder resolution
+      _stateManager.resolvePlaceholder(entry.key, entry.value);
     }
   }
 
