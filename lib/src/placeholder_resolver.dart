@@ -8,14 +8,18 @@ import 'package:chunk_norris/src/chunk_state_manager.dart';
 /// to optimize performance in large-scale data processing.
 ///
 /// ## Placeholder Format
-/// Placeholders follow the format `$<id>` where `<id>` is a numeric identifier:
+/// By default, placeholders follow the format `$<id>` where `<id>` is a numeric identifier:
 /// - `$123` - Valid placeholder with ID "123"
 /// - `$0` - Valid placeholder with ID "0"
 /// - `$abc` - Invalid (non-numeric ID)
 /// - `prefix$123` - Invalid (has prefix)
 ///
+/// Custom placeholder patterns can be provided via the constructor parameter.
+/// The pattern must include a capture group for the placeholder ID.
+///
 /// ## Key Features
 /// - Pattern recognition for placeholder identification
+/// - Configurable placeholder patterns via custom RegExp
 /// - Recursive traversal of complex data structures
 /// - Efficient caching mechanism for resolved data
 /// - Support for nested Maps and Lists
@@ -23,8 +27,14 @@ import 'package:chunk_norris/src/chunk_state_manager.dart';
 ///
 /// ## Usage Example
 /// ```dart
+/// // Using default pattern
 /// final resolver = PlaceholderResolver();
 /// final stateManager = ChunkStateManager();
+///
+/// // Using custom pattern
+/// final customResolver = PlaceholderResolver(
+///   placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+/// );
 ///
 /// // Sample data with placeholders
 /// final data = {
@@ -54,20 +64,41 @@ import 'package:chunk_norris/src/chunk_state_manager.dart';
 /// - [ChunkProcessor] for processing data with placeholders
 final class PlaceholderResolver {
   final Map<String, dynamic> _resolutionCache = {};
+  final RegExp _placeholderRegex;
 
   /// Creates a new PlaceholderResolver instance.
   ///
   /// The resolver is initialized with an empty cache and is ready to process
   /// placeholder data immediately.
-  PlaceholderResolver();
-
-  /// Regular expression pattern for matching placeholder format.
-  static final RegExp _placeholderRegex = RegExp(r'^\$(\d+)$');
+  ///
+  /// ## Parameters
+  /// - [placeholderPattern]: Optional custom RegExp pattern for matching placeholders.
+  ///   If not provided, uses the default pattern `^\$(\d+)$` which matches `$<numeric_id>`.
+  ///   Custom patterns should include a capture group for the placeholder ID.
+  ///
+  /// ## Examples
+  /// ```dart
+  /// // Using default pattern (matches $123, $0, etc.)
+  /// final resolver = PlaceholderResolver();
+  ///
+  /// // Using custom pattern (matches {id:123}, {id:0}, etc.)
+  /// final customResolver = PlaceholderResolver(
+  ///   placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+  /// );
+  ///
+  /// // Using custom pattern (matches @var123, @var0, etc.)
+  /// final varResolver = PlaceholderResolver(
+  ///   placeholderPattern: RegExp(r'^@var(\d+)$'),
+  /// );
+  /// ```
+  PlaceholderResolver({
+    RegExp? placeholderPattern,
+  }) : _placeholderRegex = placeholderPattern ?? RegExp(r'^\$(\d+)$');
 
   /// Determines if a given value is a placeholder.
   ///
   /// A value is considered a placeholder if it's a string that matches
-  /// the pattern `$<numeric_id>` where `<numeric_id>` is one or more digits.
+  /// the configured placeholder pattern.
   ///
   /// ## Parameters
   /// - [value]: The value to check for placeholder format
@@ -79,7 +110,8 @@ final class PlaceholderResolver {
 
   /// Extracts the placeholder ID from a placeholder value.
   ///
-  /// If the value is a valid placeholder, returns the numeric ID portion.
+  /// If the value is a valid placeholder, returns the ID portion from the first
+  /// capture group of the configured RegExp pattern.
   /// Returns `null` if the value is not a placeholder.
   ///
   /// ## Parameters
@@ -96,7 +128,8 @@ final class PlaceholderResolver {
   /// Recursively finds all placeholder IDs in a data structure.
   ///
   /// Traverses the provided data structure (Maps, Lists, and primitive values)
-  /// to identify all placeholder values and extract their IDs.
+  /// to identify all placeholder values and extract their IDs using the configured
+  /// RegExp pattern.
   ///
   /// ## Parameters
   /// - [data]: The data structure to search for placeholders
@@ -111,6 +144,7 @@ final class PlaceholderResolver {
   ///
   /// ## Example
   /// ```dart
+  /// // Using default pattern
   /// final resolver = PlaceholderResolver();
   ///
   /// final data = {
@@ -124,6 +158,23 @@ final class PlaceholderResolver {
   ///
   /// final placeholders = resolver.findPlaceholders(data);
   /// print(placeholders); // {'123', '456', '789', '999'}
+  ///
+  /// // Using custom pattern
+  /// final customResolver = PlaceholderResolver(
+  ///   placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+  /// );
+  ///
+  /// final customData = {
+  ///   'user': '{id:123}',
+  ///   'posts': ['{id:456}', '{id:789}', 'regular_string'],
+  ///   'nested': {
+  ///     'avatar': '{id:999}',
+  ///     'count': 42
+  ///   }
+  /// };
+  ///
+  /// final customPlaceholders = customResolver.findPlaceholders(customData);
+  /// print(customPlaceholders); // {'123', '456', '789', '999'}
   /// ```
   ///
   /// ## Performance Note
@@ -197,6 +248,7 @@ final class PlaceholderResolver {
   ///
   /// ## Example
   /// ```dart
+  /// // Using default pattern
   /// final resolver = PlaceholderResolver();
   /// final stateManager = ChunkStateManager();
   ///
@@ -217,6 +269,27 @@ final class PlaceholderResolver {
   /// //   'user': {'name': 'John', 'age': 30},
   /// //   'message': 'Hello World',
   /// //   'pending': '$789',
+  /// //   'static': 'unchanged'
+  /// // }
+  ///
+  /// // Using custom pattern
+  /// final customResolver = PlaceholderResolver(
+  ///   placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+  /// );
+  ///
+  /// final customData = {
+  ///   'user': '{id:123}',
+  ///   'message': '{id:456}',
+  ///   'pending': '{id:789}', // Not resolved yet
+  ///   'static': 'unchanged'
+  /// };
+  ///
+  /// final customResolved = customResolver.resolvePlaceholders(customData, stateManager);
+  /// print(customResolved);
+  /// // {
+  /// //   'user': {'name': 'John', 'age': 30},
+  /// //   'message': 'Hello World',
+  /// //   'pending': '{id:789}',
   /// //   'static': 'unchanged'
   /// // }
   /// ```

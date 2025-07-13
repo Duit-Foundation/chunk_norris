@@ -283,9 +283,71 @@ if (partialUser != null) {
 | `ChunkState.loaded` | Data successfully loaded |
 | `ChunkState.error` | Error occurred during loading |
 
+## 🎨 Custom Placeholder Patterns
+
+By default, Chunk Norris uses the pattern `$<id>` for placeholders (e.g., `$123`, `$456`). You can customize this pattern by providing a custom RegExp to match your specific needs.
+
+### Using Custom Patterns
+
+```dart
+// Default pattern: $123, $456, etc.
+final chunkJson = ChunkJson.fromJson({
+  'user': '$123',
+  'posts': '$456',
+});
+
+// Custom pattern: {id:123}, {id:456}, etc.
+final customChunkJson = ChunkJson.fromJson({
+  'user': '{id:123}',
+  'posts': '{id:456}',
+}, placeholderPattern: RegExp(r'^\{id:(\d+)\}$'));
+
+// Custom pattern: @var123, @var456, etc.
+final varChunkJson = ChunkJson.fromJson({
+  'user': '@var123',
+  'posts': '@var456',
+}, placeholderPattern: RegExp(r'^@var(\d+)$'));
+```
+
+### Custom Patterns with ChunkObject
+
+```dart
+final userObject = ChunkObject.fromJson(
+  {
+    'name': '{id:123}',
+    'email': '{id:456}',
+    'profile': '{id:789}',
+  },
+  (json) => User.fromJson(json),
+  placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+  chunkFields: {
+    'name': ChunkField.string('123'),
+    'email': ChunkField.string('456'),
+    'profile': ChunkField.object<UserProfile>('789', UserProfile.fromJson),
+  },
+);
+```
+
+### Pattern Requirements
+
+Your custom RegExp pattern must:
+
+- Include exactly one capture group `()` for the placeholder ID
+- Match the complete placeholder string (use `^` and `$` anchors)
+- Extract a unique identifier from the first capture group
+
+### Pattern Examples
+
+| Pattern | RegExp | Matches | Extracts |
+|---------|--------|---------|----------|
+| Default | `^\$(\d+)$` | `$123`, `$456` | `123`, `456` |
+| Braces | `^\{id:(\d+)\}$` | `{id:123}`, `{id:456}` | `123`, `456` |
+| Variables | `^@var(\d+)$` | `@var123`, `@var456` | `123`, `456` |
+| Custom | `^placeholder_(\w+)$` | `placeholder_user`, `placeholder_posts` | `user`, `posts` |
+
 ## 🌟 Use Cases
 
-### Server-Sent Events (SSE)
+### Server-Sent Events, WebSockets (SSE, WS)
 
 Perfect for real-time data streaming where the initial response contains a skeleton and subsequent events fill in the details.
 
@@ -297,9 +359,9 @@ Load critical data first, then enhance with additional information as it becomes
 
 Reduce initial response times by sending partial data immediately and streaming the rest.
 
-### Microservices
+### Data Aggregation from Multiple Sources
 
-Aggregate data from multiple services progressively instead of waiting for all services to respond.
+Combine data from different sources (databases, APIs, files) into a single unified model. Load available data immediately and fill in missing pieces as they become available from slower sources.
 
 ## 🤝 Contributing
 

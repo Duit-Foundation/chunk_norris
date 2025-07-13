@@ -1,6 +1,4 @@
-/// Support for doing something awesome.
-///
-/// More dartdocs go here.
+///A powerful Dart library for progressive JSON hydration with chunked data loading, placeholders, and type safety.
 library;
 
 export 'src/index.dart'

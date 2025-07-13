@@ -8,6 +8,131 @@ import 'processor.dart';
 import 'state.dart';
 import 'chunk_field.dart';
 
+/// A high-level abstraction for managing progressive JSON data with typed object deserialization.
+///
+/// ChunkObject provides a sophisticated interface for handling complex JSON structures
+/// that load progressively through chunks. It combines the power of placeholder resolution
+/// with type-safe deserialization, caching, and comprehensive state management.
+///
+/// ## Key Features
+/// - **Type-Safe Deserialization**: Generic type parameter ensures compile-time type safety
+/// - **Progressive Loading**: Handles JSON with placeholders that resolve over time
+/// - **Intelligent Caching**: Automatic cache invalidation and result caching
+/// - **ChunkField Integration**: Supports typed field access with custom deserializers
+/// - **Stream-Based Updates**: Multiple stream interfaces for different update patterns
+/// - **State Management**: Comprehensive tracking of chunk loading states
+/// - **Error Handling**: Robust error handling with fallback mechanisms
+/// - **Resource Management**: Proper cleanup and disposal patterns
+///
+/// ## Architecture
+/// ChunkObject orchestrates several components:
+/// ```
+/// ChunkObject<T>
+/// ├── ChunkStateManager (state tracking)
+/// ├── ChunkProcessor (data processing)
+/// ├── PlaceholderResolver (placeholder resolution)
+/// ├── ChunkField Map (typed field access)
+/// └── Deserializer Function (JSON → T conversion)
+/// ```
+///
+/// ## Usage Patterns
+///
+/// ### Basic Usage
+/// ```dart
+/// // Define your data model
+/// class User {
+///   final String name;
+///   final int age;
+///   final String email;
+///
+///   User({required this.name, required this.age, required this.email});
+///
+///   factory User.fromJson(Map<String, dynamic> json) => User(
+///     name: json['name'],
+///     age: json['age'],
+///     email: json['email'],
+///   );
+/// }
+///
+/// // Create chunk object from JSON with placeholders
+/// final json = {
+///   'name': '$123',
+///   'age': 30,
+///   'email': '$456'
+/// };
+///
+/// final userObject = ChunkObject.fromJson(json, User.fromJson);
+///
+/// // Process incoming chunks
+/// userObject.processChunk({'123': 'John Doe'});
+/// userObject.processChunk({'456': 'john@example.com'});
+///
+/// // Get typed data
+/// final user = userObject.getData(); // User instance
+/// ```
+///
+/// ### With ChunkFields
+/// ```dart
+/// final nameField = ChunkField.string('123');
+/// final emailField = ChunkField.string('456');
+///
+/// final userObject = ChunkObject.fromJson(
+///   json,
+///   User.fromJson,
+///   chunkFields: {
+///     'name': nameField,
+///     'email': emailField,
+///   },
+/// );
+///
+/// // Access typed fields
+/// final name = await nameField.future;
+/// final email = await emailField.future;
+/// ```
+///
+/// ### Stream-Based Updates
+/// ```dart
+/// // Listen for object updates
+/// userObject.listenObjectUpdate((user) {
+///   print('User updated: ${user.name}');
+/// });
+///
+/// // Listen for complete resolution
+/// userObject.listenObjectResolve((user) {
+///   print('User fully loaded: $user');
+/// });
+///
+/// // Listen for chunk states
+/// userObject.listenChunkStates((states) {
+///   print('Chunk states: $states');
+/// });
+/// ```
+///
+/// ## Stream Interfaces
+/// ChunkObject provides several stream interfaces:
+/// - **Raw Chunk Updates**: Raw chunk data as it arrives
+/// - **Parsed Chunk Updates**: Chunks with field-specific deserialization
+/// - **Object Updates**: Typed object instances on each update
+/// - **Object Resolution**: Typed object only when fully resolved
+/// - **State Updates**: Chunk state changes
+///
+/// ## Performance Considerations
+/// - **Intelligent Caching**: Results are cached until invalidated
+/// - **Partial Deserialization**: Attempts deserialization with partial data
+/// - **Lazy Evaluation**: Streams are computed on-demand
+/// - **Memory Management**: Proper resource cleanup with dispose()
+///
+/// ## Error Handling
+/// - **Graceful Degradation**: Falls back to partial data when possible
+/// - **Type Safety**: Validates deserialization results
+/// - **State Tracking**: Maintains error states per chunk
+/// - **Exception Safety**: Prevents crashes from invalid data
+///
+/// See also:
+/// - [ChunkField] for typed field access
+/// - [ChunkStateManager] for state management
+/// - [ChunkProcessor] for data processing
+/// - [PlaceholderResolver] for placeholder resolution
 final class ChunkObject<T> {
   final Map<String, dynamic> _initialJson;
   final T Function(Map<String, dynamic>) _deserializer;
@@ -27,16 +152,73 @@ final class ChunkObject<T> {
     this._resolver,
   );
 
+  /// Creates a ChunkObject from JSON data with optional typed chunk fields.
+  ///
+  /// This factory method initializes a complete ChunkObject with all necessary
+  /// components for progressive JSON loading. It automatically discovers placeholders
+  /// in the JSON structure and sets up the required infrastructure.
+  ///
+  /// ## Parameters
+  /// - [json]: The initial JSON data containing placeholders
+  /// - [deserializer]: Function to convert resolved JSON to type [T]
+  /// - [chunkFields]: Optional map of named chunk fields for typed access
+  /// - [placeholderPattern]: Optional custom RegExp pattern for matching placeholders.
+  ///   If not provided, uses the default pattern `^\$(\d+)$` which matches `$<numeric_id>`.
+  ///
+  /// ## Type Parameters
+  /// - [T]: The target type for deserialization
+  ///
+  /// ## Initialization Process
+  /// 1. Creates internal components (resolver, state manager, processor)
+  /// 2. Discovers placeholders in the JSON structure
+  /// 3. Registers chunk fields if provided
+  /// 4. Sets up automatic chunk update handling
+  /// 5. Configures stream subscriptions
+  ///
+  /// ## Examples
+  /// ```dart
+  /// // Basic usage with default pattern
+  /// final userObject = ChunkObject.fromJson(
+  ///   {'name': '$123', 'age': 30},
+  ///   (json) => User.fromJson(json),
+  /// );
+  ///
+  /// // With custom pattern
+  /// final userObject = ChunkObject.fromJson(
+  ///   {'name': '{id:123}', 'age': 30},
+  ///   (json) => User.fromJson(json),
+  ///   placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+  /// );
+  ///
+  /// // With chunk fields
+  /// final userObject = ChunkObject.fromJson(
+  ///   {'name': '$123', 'email': '$456'},
+  ///   User.fromJson,
+  ///   chunkFields: {
+  ///     'name': ChunkField.string('123'),
+  ///     'email': ChunkField.string('456'),
+  ///   },
+  /// );
+  /// ```
+  ///
+  /// ## ChunkField Integration
+  /// When chunk fields are provided:
+  /// - They're automatically registered with the state manager
+  /// - Provide typed access to individual fields
+  /// - Support custom deserialization per field
+  /// - Enable field-specific error handling
   factory ChunkObject.fromJson(
     Map<String, dynamic> json,
     T Function(Map<String, dynamic>) deserializer, {
     Map<String, ChunkField>? chunkFields,
+    RegExp? placeholderPattern,
   }) {
-    final resolver = PlaceholderResolver();
+    final resolver =
+        PlaceholderResolver(placeholderPattern: placeholderPattern);
     final stateManager = ChunkStateManager();
     final processor = ChunkProcessor(stateManager);
 
-    final typedJson = ChunkObject._(
+    final jsonObject = ChunkObject._(
       json,
       deserializer,
       stateManager,
@@ -48,7 +230,7 @@ final class ChunkObject<T> {
 
     // Register chunk fields if provided
     if (chunkFields != null) {
-      typedJson._chunkFields = chunkFields
+      jsonObject._chunkFields = chunkFields
         ..forEach((key, value) {
           stateManager.registerPlaceholder(value.placeholderId);
           placeholders.remove(value.placeholderId);
@@ -63,15 +245,42 @@ final class ChunkObject<T> {
     }
 
     // Subscribe to processor updates
-    processor.dataStream.listen(typedJson._handleChunkUpdate);
+    processor.dataStream.listen(jsonObject._handleChunkUpdate);
 
-    return typedJson;
+    return jsonObject;
   }
 
-  /// Original JSON
-  Map<String, dynamic> get initialJson => _initialJson;
-
-  /// Registered chunk fields
+  /// An unmodifiable map of all registered chunk fields.
+  ///
+  /// This property provides access to the typed chunk fields that were
+  /// registered during initialization or added later. Each field provides
+  /// type-safe access to specific parts of the JSON structure.
+  ///
+  /// ## Returns
+  /// An unmodifiable [Map<String, ChunkField>] where:
+  /// - Keys are field names/identifiers
+  /// - Values are [ChunkField] instances
+  ///
+  /// ## Usage
+  /// ```dart
+  /// final fields = userObject.chunkFields;
+  ///
+  /// // Check if a field exists
+  /// if (fields.containsKey('name')) {
+  ///   final nameField = fields['name'];
+  ///   print('Name field state: ${nameField.state}');
+  /// }
+  ///
+  /// // Iterate over all fields
+  /// for (final entry in fields.entries) {
+  ///   print('${entry.key}: ${entry.value.state}');
+  /// }
+  /// ```
+  ///
+  /// ## Field Access
+  /// - Use [getChunkField] for typed field access
+  /// - Use [registerChunkField] to add new fields
+  /// - Use field-specific methods for state checking
   Map<String, ChunkField> get chunkFields => Map.unmodifiable(_chunkFields);
 
   /// Stream of chunks with preliminary parsing: if there is a ChunkField with deserializer for the key, then parses the value
@@ -138,7 +347,7 @@ final class ChunkObject<T> {
     Function(Object)? onError,
     void Function()? onDone,
   }) =>
-      _typedUpdateStream.listen(
+      _objectUpdateStream.listen(
         onData,
         onError: onError,
         onDone: onDone,
@@ -157,7 +366,7 @@ final class ChunkObject<T> {
 
   /// Stream of typed data updates
   /// Emits events on each chunk update
-  Stream<T> get _typedUpdateStream => _processor.dataStream
+  Stream<T> get _objectUpdateStream => _processor.dataStream
       .map((_) => getDataOrNull())
       .where((data) => data != null)
       .cast<T>();
@@ -251,11 +460,8 @@ final class ChunkObject<T> {
   }
 
   /// Checks if there are minimal data for deserialization
-  bool _hasMinimalDataForDeserialization(Map<String, dynamic> json) {
-    // Check that main fields (not placeholders) are present
-    // This helps avoid deserialization with critically important placeholders
-    return json.values.any((value) => !_resolver.isPlaceholder(value));
-  }
+  bool _hasMinimalDataForDeserialization(Map<String, dynamic> json) =>
+      json.values.any((value) => !_resolver.isPlaceholder(value));
 
   /// Gets a map of all chunk states
   Map<String, ChunkState> _getChunkStates() {

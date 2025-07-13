@@ -49,6 +49,100 @@ void main() {
           equals('\$3')); // Unresolved placeholder
     });
 
+    test('should work with custom RegExp pattern', () {
+      // Create resolver with custom pattern
+      final customResolver = PlaceholderResolver(
+        placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+      );
+
+      // Prepare data with custom pattern
+      final data = {
+        'user': {
+          'name': 'John',
+          'avatar': '{id:1}',
+          'posts': '{id:2}',
+        },
+        'settings': {
+          'theme': 'dark',
+          'notifications': '{id:3}',
+        },
+      };
+
+      // Register placeholders
+      stateManager.registerPlaceholder('1');
+      stateManager.registerPlaceholder('2');
+      stateManager.registerPlaceholder('3');
+
+      // Resolve some placeholders
+      stateManager.resolvePlaceholder('1', 'custom_avatar.png');
+      stateManager.resolvePlaceholder('2', ['custom_post1', 'custom_post2']);
+
+      // First call - should execute resolution and save to cache
+      final result1 = customResolver.resolvePlaceholders(data, stateManager);
+
+      // Second call - should return result from cache
+      final result2 = customResolver.resolvePlaceholders(data, stateManager);
+
+      // Check that results are identical
+      expect(result1, equals(result2));
+      expect(result1['user']['avatar'], equals('custom_avatar.png'));
+      expect(
+          result1['user']['posts'], equals(['custom_post1', 'custom_post2']));
+      expect(result1['settings']['notifications'],
+          equals('{id:3}')); // Unresolved placeholder
+    });
+
+    test('should find placeholders with custom pattern', () {
+      // Create resolver with custom pattern
+      final customResolver = PlaceholderResolver(
+        placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+      );
+
+      // Prepare data with custom pattern
+      final data = {
+        'user': '{id:123}',
+        'posts': ['{id:456}', '{id:789}', 'regular_string'],
+        'nested': {'avatar': '{id:999}', 'count': 42}
+      };
+
+      // Find placeholders
+      final placeholders = customResolver.findPlaceholders(data);
+
+      // Check that correct placeholders are found
+      expect(placeholders, containsAll(['123', '456', '789', '999']));
+      expect(placeholders.length, equals(4));
+    });
+
+    test('should identify placeholders with custom pattern', () {
+      // Create resolver with custom pattern
+      final customResolver = PlaceholderResolver(
+        placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+      );
+
+      // Test various values
+      expect(customResolver.isPlaceholder('{id:123}'), isTrue);
+      expect(customResolver.isPlaceholder('{id:0}'), isTrue);
+      expect(customResolver.isPlaceholder('{id:abc}'), isFalse);
+      expect(customResolver.isPlaceholder('prefix{id:123}'), isFalse);
+      expect(customResolver.isPlaceholder('\$123'), isFalse);
+      expect(customResolver.isPlaceholder('regular_string'), isFalse);
+    });
+
+    test('should extract placeholder IDs with custom pattern', () {
+      // Create resolver with custom pattern
+      final customResolver = PlaceholderResolver(
+        placeholderPattern: RegExp(r'^\{id:(\d+)\}$'),
+      );
+
+      // Test ID extraction
+      expect(customResolver.extractPlaceholderId('{id:123}'), equals('123'));
+      expect(customResolver.extractPlaceholderId('{id:0}'), equals('0'));
+      expect(customResolver.extractPlaceholderId('{id:abc}'), isNull);
+      expect(customResolver.extractPlaceholderId('prefix{id:123}'), isNull);
+      expect(customResolver.extractPlaceholderId('\$123'), isNull);
+      expect(customResolver.extractPlaceholderId('regular_string'), isNull);
+    });
+
     test('should invalidate cache when placeholder states change', () {
       final data = {
         'value': '\$1',
