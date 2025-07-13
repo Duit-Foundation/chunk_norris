@@ -1,10 +1,11 @@
 name: chunk_norris
 description: A powerful Dart library for progressive JSON hydration with chunked data loading, placeholders, and type safety.
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/Duit-Foundation/chunk_norris
+issue_tracker: https://github.com/Duit-Foundation/chunk_norris/issues
 
 environment:
-  sdk: ^3.5.3
+  sdk: ^3.0.0
 
 # Add regular dependencies here.
 # dependencies:

@@ -354,7 +354,7 @@ final class ChunkField<T> {
       if (data is T) {
         typedValue = data;
       } else if (_deserializer != null) {
-        typedValue = _deserializer(data);
+        typedValue = _deserializer!(data);
       } else {
         throw ArgumentError(
           'Cannot cast ${data.runtimeType} to $T. '
