@@ -37,7 +37,7 @@ import 'package:chunk_norris/src/index.dart';
 /// });
 ///
 /// // Process individual chunks
-/// processor.processChunk({
+/// await processor.processChunk({
 ///   'user_123': {'name': 'Alice', 'age': 30},
 ///   'post_456': {'title': 'Hello World', 'content': '...'}
 /// });
@@ -122,7 +122,7 @@ final class ChunkProcessor {
   ///
   /// ## Example
   /// ```dart
-  /// processor.processChunk({
+  /// await processor.processChunk({
   ///   'user_123': {
   ///     'id': 123,
   ///     'name': 'John Doe',
@@ -138,7 +138,19 @@ final class ChunkProcessor {
   /// ## Error Handling
   /// Any errors during processing are caught and forwarded to the data stream
   /// as error events, ensuring the processor remains stable and responsive.
-  void processChunk(Map<String, dynamic> chunk) {
+  ///
+  /// ## Asynchronous Processing
+  /// This method is asynchronous and should be awaited to ensure proper
+  /// completion of chunk processing and notification of listeners.
+  ///
+  /// ## Example
+  /// ```dart
+  /// await processor.processChunk({
+  ///   'user_123': {'name': 'Alice', 'age': 30},
+  ///   'post_456': {'title': 'Hello World', 'content': '...'}
+  /// });
+  /// ```
+  Future<void> processChunk(Map<String, dynamic> chunk) async {
     try {
       // Process each element in chunk
       chunk.forEach((chunkId, data) {
@@ -147,6 +159,9 @@ final class ChunkProcessor {
 
       // Notify about new data
       _dataController.add(chunk);
+
+      // Allow microtasks to process
+      await Future.delayed(Duration.zero);
     } catch (e, s) {
       _dataController.addError(e, s);
     }
@@ -178,7 +193,7 @@ final class ChunkProcessor {
   /// ## Processing Flow
   /// 1. Subscribes to the provided stream
   /// 2. Parses each JSON string into a [Map<String, dynamic>]
-  /// 3. Calls [processChunk] with the parsed data
+  /// 3. Calls [processChunk] with the parsed data (awaited internally)
   /// 4. Handles JSON parsing errors and stream errors
   ///
   /// ## Parameters
@@ -215,10 +230,10 @@ final class ChunkProcessor {
   /// - Multiple stream subscriptions can be active simultaneously
   /// - Call [close] to properly clean up resources when done
   void processChunkStream(Stream<String> chunkStream) => chunkStream.listen(
-        (chunkData) {
+        (chunkData) async {
           try {
             final chunk = jsonDecode(chunkData) as Map<String, dynamic>;
-            processChunk(chunk);
+            await processChunk(chunk);
           } catch (e, s) {
             _dataController.addError(e, s);
           }

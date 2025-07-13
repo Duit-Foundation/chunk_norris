@@ -49,9 +49,9 @@ import 'package:chunk_norris/src/state.dart';
 /// final chunkJson = ChunkJson.fromJson(json);
 ///
 /// // Process chunks as they arrive
-/// chunkJson.processChunk({'123': 'This is the article content...'});
-/// chunkJson.processChunk({'456': 'John Doe'});
-/// chunkJson.processChunk({'789': 1500});
+/// await chunkJson.processChunk({'123': 'This is the article content...'});
+/// await chunkJson.processChunk({'456': 'John Doe'});
+/// await chunkJson.processChunk({'789': 1500});
 ///
 /// // Access resolved values
 /// final title = chunkJson['title'];        // 'Article Title'
@@ -400,7 +400,7 @@ final class ChunkJson {
   /// - Efficient concurrent waiting
   /// - No polling or busy waiting
   /// - Minimal memory overhead
-  Future<Map<String, dynamic>> waitForAllChunks() async {
+  Future<Map<String, dynamic>> waitForAllData() async {
     final placeholders = _resolver.findPlaceholders(_json);
 
     if (placeholders.isEmpty) {
@@ -438,7 +438,7 @@ final class ChunkJson {
   /// - Errors are forwarded to the [onError] callback
   /// - Stream remains active after non-fatal errors
   /// - Proper resource cleanup on completion
-  StreamSubscription<Map<String, dynamic>>? listenUpdateStream(
+  StreamSubscription<Map<String, dynamic>> listenUpdateStream(
     void Function(Map<String, dynamic> chunk) onData, {
     void Function(Object error)? onError,
     void Function()? onDone,
@@ -454,6 +454,9 @@ final class ChunkJson {
   /// This method handles individual chunk data by resolving placeholders
   /// and updating the internal state. It's the primary mechanism for
   /// providing data to the ChunkJson instance.
+  ///
+  /// This method is asynchronous and should be awaited to ensure proper
+  /// completion of chunk processing and JSON updates.
   ///
   /// ## Parameters
   /// - [chunk]: A map containing placeholder IDs as keys and resolved data as values
@@ -474,7 +477,12 @@ final class ChunkJson {
   /// - Invalid chunk data is handled gracefully
   /// - Errors are propagated to stream listeners
   /// - Partial chunk processing is supported
-  void processChunk(Map<String, dynamic> chunk) =>
+  ///
+  /// ## Example
+  /// ```dart
+  /// await chunkJson.processChunk({'123': 'John Doe'});
+  /// ```
+  Future<void> processChunk(Map<String, dynamic> chunk) =>
       _processor.processChunk(chunk);
 
   /// Processes a stream of JSON-encoded chunk data strings.
@@ -522,7 +530,14 @@ final class ChunkJson {
   /// - Clearing cached data
   /// - Resetting for new data context
   /// - Testing and debugging
-  void clear() => _stateManager.clear();
+  void clear() {
+    _stateManager.clear();
+    // Re-register all placeholders to reset them to pending state
+    final placeholders = _resolver.findPlaceholders(_json);
+    for (final placeholder in placeholders) {
+      _stateManager.registerPlaceholder(placeholder);
+    }
+  }
 
   /// Disposes of the ChunkJson instance and releases all resources.
   ///
@@ -561,7 +576,7 @@ final class ChunkJson {
   /// ## Usage
   /// ```dart
   /// final chunkJson = ChunkJson.fromJson({'name': '$123'});
-  /// chunkJson.processChunk({'123': 'John Doe'});
+  /// await chunkJson.processChunk({'123': 'John Doe'});
   ///
   /// final name = chunkJson['name']; // 'John Doe'
   /// ```
@@ -642,7 +657,7 @@ final class ChunkJson {
   /// ## Usage
   /// ```dart
   /// final chunkJson = ChunkJson.fromJson({'name': '$123', 'age': 30});
-  /// chunkJson.processChunk({'123': 'John Doe'});
+  /// await chunkJson.processChunk({'123': 'John Doe'});
   ///
   /// final values = chunkJson.values.toList();
   /// print(values); // ['John Doe', 30]
@@ -713,7 +728,7 @@ final class ChunkJson {
   ///
   /// print(chunkJson.allChunksResolved); // false
   ///
-  /// chunkJson.processChunk({'123': 'Article content...'});
+  /// await chunkJson.processChunk({'123': 'Article content...'});
   /// print(chunkJson.allChunksResolved); // true
   /// ```
   ///
@@ -726,16 +741,7 @@ final class ChunkJson {
   /// ## Performance Note
   /// This property scans the JSON structure for placeholders on each access.
   /// Consider caching the result if called frequently.
-  bool get allChunksResolved {
-    final placeholders = _resolver.findPlaceholders(_json);
-
-    if (placeholders.isEmpty) {
-      return true;
-    }
-
-    return placeholders
-        .every((id) => _stateManager.getChunkState(id) == ChunkState.loaded);
-  }
+  bool get allChunksResolved => !_stateManager.hasUnresolvedData;
 
   /// Returns a string representation of the resolved JSON data.
   @override

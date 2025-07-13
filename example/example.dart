@@ -90,7 +90,7 @@ Future<void> chunkObjectExample() async {
 
   await Future.delayed(const Duration(seconds: 1));
 
-  chunkedObject.processChunk({
+  await chunkedObject.processChunk({
     '1': {
       'address': '123 Main St',
       'phone': '123-456-7890',
@@ -99,7 +99,7 @@ Future<void> chunkObjectExample() async {
 
   await Future.delayed(const Duration(seconds: 1));
 
-  chunkedObject.processChunk({
+  await chunkedObject.processChunk({
     '2': {
       'meta1': 'value1',
       'meta2': 'value2',
@@ -108,7 +108,7 @@ Future<void> chunkObjectExample() async {
 
   await Future.delayed(const Duration(seconds: 1));
 
-  chunkedObject.processChunk({
+  await chunkedObject.processChunk({
     '3': {
       'some': 'value3',
     },

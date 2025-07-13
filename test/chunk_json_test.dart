@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 void main() {
   group('ChunkJson', () {
     group('initialization', () {
-      test('should initialize with empty JSON', () {
+      test('should initialize with empty JSON', () async {
         final chunkJson = ChunkJson.fromJson({});
 
         expect(chunkJson.json, equals({}));
@@ -17,7 +17,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isTrue);
       });
 
-      test('should initialize with JSON without placeholders', () {
+      test('should initialize with JSON without placeholders', () async {
         final json = {
           'title': 'Test Title',
           'value': 42,
@@ -30,7 +30,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isTrue);
       });
 
-      test('should initialize with JSON containing placeholders', () {
+      test('should initialize with JSON containing placeholders', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -44,7 +44,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isFalse);
       });
 
-      test('should initialize with custom placeholder pattern', () {
+      test('should initialize with custom placeholder pattern', () async {
         final json = {
           'title': 'Test Title',
           'content': '{{123}}',
@@ -59,7 +59,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isFalse);
       });
 
-      test('should preserve original JSON structure', () {
+      test('should preserve original JSON structure', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -77,7 +77,7 @@ void main() {
     });
 
     group('getValue', () {
-      test('should return non-placeholder values directly', () {
+      test('should return non-placeholder values directly', () async {
         final json = {
           'title': 'Test Title',
           'value': 42,
@@ -90,7 +90,8 @@ void main() {
         expect(chunkJson.getValue('active'), equals(true));
       });
 
-      test('should return placeholder strings for unresolved placeholders', () {
+      test('should return placeholder strings for unresolved placeholders',
+          () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -103,7 +104,7 @@ void main() {
         expect(chunkJson.getValue('author'), equals('\$456'));
       });
 
-      test('should return resolved values for resolved placeholders', () {
+      test('should return resolved values for resolved placeholders', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -119,20 +120,20 @@ void main() {
         expect(chunkJson.getValue('author'), equals('John Doe'));
       });
 
-      test('should return null for non-existent keys', () {
+      test('should return null for non-existent keys', () async {
         final chunkJson = ChunkJson.fromJson({'title': 'Test'});
 
         expect(chunkJson.getValue('nonExistent'), isNull);
       });
 
-      test('should handle nested structures correctly', () {
+      test('should handle nested structures correctly', () async {
         final json = {
           'metadata': {'views': '\$123', 'likes': 42},
           'tags': ['\$456', 'static']
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 1500, '456': 'dynamic-tag'});
+        await chunkJson.processChunk({'123': 1500, '456': 'dynamic-tag'});
 
         final metadata = chunkJson.getValue('metadata');
         expect(metadata['views'], equals(1500));
@@ -170,8 +171,8 @@ void main() {
         final contentFuture = chunkJson.getValueAsync('content');
 
         // Process chunk after a delay
-        Timer(Duration(milliseconds: 100), () {
-          chunkJson.processChunk({'123': 'Resolved content'});
+        Timer(Duration(milliseconds: 100), () async {
+          await chunkJson.processChunk({'123': 'Resolved content'});
         });
 
         final content = await contentFuture;
@@ -190,12 +191,12 @@ void main() {
         final authorFuture = chunkJson.getValueAsync('author');
 
         // Process chunks
-        Timer(Duration(milliseconds: 50), () {
-          chunkJson.processChunk({'123': 'Content here'});
+        Timer(Duration(milliseconds: 50), () async {
+          await chunkJson.processChunk({'123': 'Content here'});
         });
 
-        Timer(Duration(milliseconds: 100), () {
-          chunkJson.processChunk({'456': 'Author name'});
+        Timer(Duration(milliseconds: 100), () async {
+          await chunkJson.processChunk({'456': 'Author name'});
         });
 
         final results = await Future.wait([contentFuture, authorFuture]);
@@ -206,7 +207,7 @@ void main() {
     });
 
     group('getKeyState', () {
-      test('should return loaded for non-placeholder values', () {
+      test('should return loaded for non-placeholder values', () async {
         final json = {
           'title': 'Test Title',
           'value': 42,
@@ -217,7 +218,7 @@ void main() {
         expect(chunkJson.getKeyState('value'), equals(ChunkState.loaded));
       });
 
-      test('should return pending for unresolved placeholders', () {
+      test('should return pending for unresolved placeholders', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
@@ -228,20 +229,20 @@ void main() {
         expect(chunkJson.getKeyState('author'), equals(ChunkState.pending));
       });
 
-      test('should return loaded for resolved placeholders', () {
+      test('should return loaded for resolved placeholders', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         expect(chunkJson.getKeyState('content'), equals(ChunkState.loaded));
         expect(chunkJson.getKeyState('author'), equals(ChunkState.pending));
       });
 
-      test('should return loaded for non-existent keys', () {
+      test('should return loaded for non-existent keys', () async {
         final chunkJson = ChunkJson.fromJson({'title': 'Test'});
 
         expect(chunkJson.getKeyState('nonExistent'), equals(ChunkState.loaded));
@@ -249,7 +250,7 @@ void main() {
     });
 
     group('processChunk', () {
-      test('should resolve placeholders with chunk data', () {
+      test('should resolve placeholders with chunk data', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -257,28 +258,28 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'This is the content'});
+        await chunkJson.processChunk({'123': 'This is the content'});
 
         expect(chunkJson.getValue('content'), equals('This is the content'));
         expect(
             chunkJson.getValue('author'), equals('\$456')); // Still unresolved
       });
 
-      test('should handle multiple chunks', () {
+      test('should handle multiple chunks', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'First content'});
-        chunkJson.processChunk({'456': 'John Doe'});
+        await chunkJson.processChunk({'123': 'First content'});
+        await chunkJson.processChunk({'456': 'John Doe'});
 
         expect(chunkJson.getValue('content'), equals('First content'));
         expect(chunkJson.getValue('author'), equals('John Doe'));
       });
 
-      test('should handle chunk with multiple placeholders', () {
+      test('should handle chunk with multiple placeholders', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
@@ -286,7 +287,7 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk(
+        await chunkJson.processChunk(
             {'123': 'Content here', '456': 'Author name', '789': 'Title text'});
 
         expect(chunkJson.getValue('content'), equals('Content here'));
@@ -294,20 +295,20 @@ void main() {
         expect(chunkJson.getValue('title'), equals('Title text'));
       });
 
-      test('should handle empty chunks gracefully', () {
+      test('should handle empty chunks gracefully', () async {
         final json = {'content': '\$123'};
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({});
+        await chunkJson.processChunk({});
 
         expect(chunkJson.getValue('content'), equals('\$123'));
       });
 
-      test('should handle chunks with non-existent placeholder IDs', () {
+      test('should handle chunks with non-existent placeholder IDs', () async {
         final json = {'content': '\$123'};
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'999': 'Some data'});
+        await chunkJson.processChunk({'999': 'Some data'});
 
         expect(chunkJson.getValue('content'), equals('\$123'));
       });
@@ -357,7 +358,8 @@ void main() {
     });
 
     group('getResolvedData', () {
-      test('should return resolved data with all placeholders replaced', () {
+      test('should return resolved data with all placeholders replaced',
+          () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -366,7 +368,7 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk(
+        await chunkJson.processChunk(
             {'123': 'Content here', '456': 'John Doe', '789': 1500});
 
         final resolved = chunkJson.getResolvedData();
@@ -378,7 +380,7 @@ void main() {
         expect(resolved['metadata']['likes'], equals(42));
       });
 
-      test('should return original data when no placeholders exist', () {
+      test('should return original data when no placeholders exist', () async {
         final json = {
           'title': 'Test Title',
           'value': 42,
@@ -391,7 +393,7 @@ void main() {
         expect(resolved, equals(json));
       });
 
-      test('should return mixed resolved and unresolved data', () {
+      test('should return mixed resolved and unresolved data', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -399,7 +401,7 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         final resolved = chunkJson.getResolvedData();
 
@@ -417,7 +419,7 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        final result = await chunkJson.waitForAllChunks();
+        final result = await chunkJson.waitForAllData();
 
         expect(result, equals(json));
       });
@@ -430,15 +432,15 @@ void main() {
         final chunkJson = ChunkJson.fromJson(json);
 
         // Start waiting
-        final resultFuture = chunkJson.waitForAllChunks();
+        final resultFuture = chunkJson.waitForAllData();
 
         // Process chunks after delays
-        Timer(Duration(milliseconds: 50), () {
-          chunkJson.processChunk({'123': 'Content here'});
+        Timer(Duration(milliseconds: 50), () async {
+          await chunkJson.processChunk({'123': 'Content here'});
         });
 
-        Timer(Duration(milliseconds: 100), () {
-          chunkJson.processChunk({'456': 'Author name'});
+        Timer(Duration(milliseconds: 100), () async {
+          await chunkJson.processChunk({'456': 'Author name'});
         });
 
         final result = await resultFuture;
@@ -455,12 +457,13 @@ void main() {
         final chunkJson = ChunkJson.fromJson(json);
 
         // Start multiple waiting operations
-        final result1Future = chunkJson.waitForAllChunks();
-        final result2Future = chunkJson.waitForAllChunks();
+        final result1Future = chunkJson.waitForAllData();
+        final result2Future = chunkJson.waitForAllData();
 
         // Process chunks
-        Timer(Duration(milliseconds: 50), () {
-          chunkJson.processChunk({'123': 'Content here', '456': 'Author name'});
+        Timer(Duration(milliseconds: 50), () async {
+          await chunkJson
+              .processChunk({'123': 'Content here', '456': 'Author name'});
         });
 
         final results = await Future.wait([result1Future, result2Future]);
@@ -480,8 +483,8 @@ void main() {
           (chunk) => receivedChunks.add(chunk),
         );
 
-        chunkJson.processChunk({'123': 'Content here'});
-        chunkJson.processChunk({'456': 'Other data'});
+        await chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'456': 'Other data'});
 
         await Future.delayed(Duration(milliseconds: 100));
 
@@ -517,21 +520,21 @@ void main() {
     });
 
     group('Map-like interface', () {
-      test('should support [] operator', () {
+      test('should support [] operator', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         expect(chunkJson['title'], equals('Test Title'));
         expect(chunkJson['content'], equals('Content here'));
         expect(chunkJson['nonExistent'], isNull);
       });
 
-      test('should support []= operator', () {
+      test('should support []= operator', () async {
         final chunkJson = ChunkJson.fromJson({});
 
         chunkJson['title'] = 'Test Title';
@@ -541,7 +544,7 @@ void main() {
         expect(chunkJson['value'], equals(42));
       });
 
-      test('should support containsKey', () {
+      test('should support containsKey', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -553,7 +556,7 @@ void main() {
         expect(chunkJson.containsKey('nonExistent'), isFalse);
       });
 
-      test('should support keys property', () {
+      test('should support keys property', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -569,7 +572,7 @@ void main() {
         expect(keys.contains('value'), isTrue);
       });
 
-      test('should support values property with resolution', () {
+      test('should support values property with resolution', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -577,7 +580,7 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         final values = chunkJson.values.toList();
 
@@ -587,7 +590,7 @@ void main() {
         expect(values.contains(42), isTrue);
       });
 
-      test('should support isEmpty and isNotEmpty properties', () {
+      test('should support isEmpty and isNotEmpty properties', () async {
         final emptyJson = ChunkJson.fromJson({});
         final nonEmptyJson = ChunkJson.fromJson({'title': 'Test'});
 
@@ -597,7 +600,7 @@ void main() {
         expect(nonEmptyJson.isNotEmpty, isTrue);
       });
 
-      test('should support length property', () {
+      test('should support length property', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -613,7 +616,7 @@ void main() {
     });
 
     group('allChunksResolved', () {
-      test('should return true when no placeholders exist', () {
+      test('should return true when no placeholders exist', () async {
         final json = {
           'title': 'Test Title',
           'value': 42,
@@ -623,7 +626,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isTrue);
       });
 
-      test('should return false when placeholders exist', () {
+      test('should return false when placeholders exist', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -634,7 +637,7 @@ void main() {
         expect(chunkJson.allChunksResolved, isFalse);
       });
 
-      test('should return false when some placeholders are resolved', () {
+      test('should return false when some placeholders are resolved', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -642,12 +645,12 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         expect(chunkJson.allChunksResolved, isFalse);
       });
 
-      test('should return true when all placeholders are resolved', () {
+      test('should return true when all placeholders are resolved', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
@@ -655,12 +658,13 @@ void main() {
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here', '456': 'Author name'});
+        await chunkJson
+            .processChunk({'123': 'Content here', '456': 'Author name'});
 
         expect(chunkJson.allChunksResolved, isTrue);
       });
 
-      test('should return true for empty JSON', () {
+      test('should return true for empty JSON', () async {
         final chunkJson = ChunkJson.fromJson({});
 
         expect(chunkJson.allChunksResolved, isTrue);
@@ -668,32 +672,33 @@ void main() {
     });
 
     group('clear', () {
-      test('should reset all chunk states to pending', () {
+      test('should reset all chunk states to pending', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here', '456': 'Author name'});
+        await chunkJson
+            .processChunk({'123': 'Content here', '456': 'Author name'});
 
         expect(chunkJson.allChunksResolved, isTrue);
         expect(chunkJson.getValue('content'), equals('Content here'));
 
         chunkJson.clear();
 
-        expect(chunkJson.allChunksResolved, isFalse);
         expect(chunkJson.getValue('content'), equals('\$123'));
+        expect(chunkJson.allChunksResolved, isFalse);
       });
 
-      test('should preserve original JSON structure', () {
+      test('should preserve original JSON structure', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
         chunkJson.clear();
 
         expect(chunkJson.json, equals(json));
@@ -701,14 +706,14 @@ void main() {
     });
 
     group('dispose', () {
-      test('should properly dispose resources', () {
+      test('should properly dispose resources', () async {
         final json = {
           'content': '\$123',
           'author': '\$456',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         // Should not throw
         chunkJson.dispose();
@@ -719,14 +724,14 @@ void main() {
     });
 
     group('toString', () {
-      test('should return string representation of resolved data', () {
+      test('should return string representation of resolved data', () async {
         final json = {
           'title': 'Test Title',
           'content': '\$123',
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'Content here'});
+        await chunkJson.processChunk({'123': 'Content here'});
 
         final string = chunkJson.toString();
 
@@ -737,7 +742,7 @@ void main() {
     });
 
     group('error handling', () {
-      test('should handle null values gracefully', () {
+      test('should handle null values gracefully', () async {
         final json = {
           'title': null,
           'content': '\$123',
@@ -748,7 +753,7 @@ void main() {
         expect(chunkJson.getKeyState('title'), equals(ChunkState.loaded));
       });
 
-      test('should handle nested null values', () {
+      test('should handle nested null values', () async {
         final json = {
           'metadata': {'views': null, 'likes': '\$123'}
         };
@@ -759,13 +764,13 @@ void main() {
         expect(metadata['likes'], equals('\$123'));
       });
 
-      test('should handle array with placeholders', () {
+      test('should handle array with placeholders', () async {
         final json = {
           'tags': ['\$123', 'static', '\$456']
         };
         final chunkJson = ChunkJson.fromJson(json);
 
-        chunkJson.processChunk({'123': 'dynamic1', '456': 'dynamic2'});
+        await chunkJson.processChunk({'123': 'dynamic1', '456': 'dynamic2'});
 
         final tags = chunkJson.getValue('tags');
         expect(tags[0], equals('dynamic1'));

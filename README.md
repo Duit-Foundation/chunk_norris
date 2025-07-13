@@ -44,7 +44,7 @@ void main() async {
   });
 
   // Listen for updates
-  chunkJson.updateStream.listen((updatedData) {
+  chunkJson.listenUpdateStream((updatedData) {
     print('Data updated: $updatedData');
   });
 
@@ -60,7 +60,7 @@ void main() async {
   });
 
   // Wait for all chunks to load
-  final resolvedData = await chunkJson.waitForAllChunks();
+  final resolvedData = await chunkJson.waitForAllData();
   print('All chunks loaded: $resolvedData');
 
   // Clean up
@@ -121,10 +121,10 @@ void main() async {
     },
   );
 
-  // Listen for complete object resolution
-  userObject.listenObjectResolve((user) {
-    print('User fully loaded: ${user.name}, ${user.address.street}');
-  });
+  // Wait for complete object resolution
+  await userObject.waitForData();
+  final user = userObject.getData();
+  print('User fully loaded: ${user.name}, ${user.address.street}');
 
   // Process chunks
   userObject.processChunk({
@@ -218,12 +218,14 @@ final chunkObject = ChunkObject.fromJson(
   chunkFields: chunkFields,
 );
 
-// Listen for errors
-chunkObject.listenObjectResolve(
-  (user) => print('Success: $user'),
-  onError: (error) => print('Error: $error'),
-  onDone: () => print('Stream closed'),
-);
+// Handle errors during processing
+try {
+  await chunkObject.waitForData();
+  final user = chunkObject.getData();
+  print('Success: $user');
+} catch (error) {
+  print('Error: $error');
+}
 
 // Handle partial data
 final partialUser = chunkObject.getDataOrNull();
@@ -245,8 +247,9 @@ if (partialUser != null) {
 | `getResolvedData()` | Get fully resolved JSON |
 | `processChunk(Map<String, dynamic> chunk)` | Process incoming chunk |
 | `processChunkStream(Stream<String> stream)` | Process chunk stream |
-| `waitForAllChunks()` | Wait for all chunks to load |
-| `updateStream` | Stream of data updates |
+| `waitForAllData()` | Wait for all chunks to load |
+| `listenUpdateStream(callback)` | Listen for data updates |
+| `allChunksResolved` | Check if all chunks are loaded |
 | `dispose()` | Clean up resources |
 
 ### ChunkObject<T>
@@ -257,11 +260,13 @@ if (partialUser != null) {
 | `getData()` | Get fully resolved object (throws if not ready) |
 | `getDataOrNull()` | Get object or null if not ready |
 | `processChunk(Map<String, dynamic> chunk)` | Process incoming chunk |
-| `listenObjectResolve(callback)` | Listen for full object resolution |
-| `listenObjectUpdate(callback)` | Listen for any object updates |
-| `listenChunkUpdate(callback)` | Listen for chunk updates |
 | `waitForData()` | Wait for all data to load |
 | `allChunksResolved` | Check if all chunks are loaded |
+| `getChunkField<V>(String key)` | Get typed chunk field by key |
+| `isFieldReady(String fieldKey)` | Check if specific field is ready |
+| `getFieldState(String fieldKey)` | Get state of specific field |
+| `getFieldError(String fieldKey)` | Get field error (if any) |
+| `chunkFields` | Get unmodifiable map of chunk fields |
 
 ### ChunkField<T>
 

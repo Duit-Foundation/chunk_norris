@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
-
 import 'chunk_state_manager.dart';
 import 'placeholder_resolver.dart';
 import 'processor.dart';
@@ -32,6 +30,7 @@ import 'chunk_field.dart';
 /// ├── ChunkProcessor (data processing)
 /// ├── PlaceholderResolver (placeholder resolution)
 /// ├── ChunkField Map (typed field access)
+/// ├── Placeholder ID → Field Key Mapping (efficient lookup)
 /// └── Deserializer Function (JSON → T conversion)
 /// ```
 ///
@@ -64,8 +63,8 @@ import 'chunk_field.dart';
 /// final userObject = ChunkObject.fromJson(json, User.fromJson);
 ///
 /// // Process incoming chunks
-/// userObject.processChunk({'123': 'John Doe'});
-/// userObject.processChunk({'456': 'john@example.com'});
+/// await userObject.processChunk({'123': 'John Doe'});
+/// await userObject.processChunk({'456': 'john@example.com'});
 ///
 /// // Get typed data
 /// final user = userObject.getData(); // User instance
@@ -140,6 +139,8 @@ final class ChunkObject<T> {
   final ChunkProcessor _processor;
   final PlaceholderResolver _resolver;
   late final Map<String, ChunkField> _chunkFields;
+  late final Map<String, String>
+      _placeholderIdToFieldKey; // placeholderId -> chunkField key
 
   T? _cachedResult;
   bool _isCacheValid = false;
@@ -228,19 +229,26 @@ final class ChunkObject<T> {
 
     final placeholders = resolver.findPlaceholders(json);
 
-    // Register chunk fields if provided
-    if (chunkFields != null) {
-      jsonObject._chunkFields = Map<String, ChunkField>.from(chunkFields)
-        ..forEach((key, value) {
-          stateManager.registerPlaceholder(value.placeholderId);
-          placeholders.remove(value.placeholderId);
-        });
-      for (final placeholderId in placeholders) {
-        stateManager.registerPlaceholder(placeholderId);
-      }
-    } else {
-      jsonObject._chunkFields = <String, ChunkField>{};
-      for (final placeholderId in placeholders) {
+    jsonObject._chunkFields = chunkFields != null
+        ? Map<String, ChunkField>.from(chunkFields)
+        : <String, ChunkField>{};
+
+    // Initialize placeholder ID to field key mapping
+    jsonObject._placeholderIdToFieldKey = <String, String>{};
+
+    final registeredIds = <String>{};
+
+    // Register all chunk fields first and build mapping
+    for (final entry in jsonObject._chunkFields.entries) {
+      final fieldKey = entry.key;
+      final field = entry.value;
+      stateManager.registerPlaceholder(field.placeholderId);
+      registeredIds.add(field.placeholderId);
+      jsonObject._placeholderIdToFieldKey[field.placeholderId] = fieldKey;
+    }
+
+    for (final placeholderId in placeholders) {
+      if (!registeredIds.contains(placeholderId)) {
         stateManager.registerPlaceholder(placeholderId);
       }
     }
@@ -284,13 +292,31 @@ final class ChunkObject<T> {
   /// - Use field-specific methods for state checking
   Map<String, ChunkField> get chunkFields => Map.unmodifiable(_chunkFields);
 
+  /// An unmodifiable map of placeholder ID to chunk field key mappings.
+  ///
+  /// This property provides access to the internal mapping between placeholder IDs
+  /// and their corresponding chunk field keys, which is useful for debugging and
+  /// understanding the relationship between placeholders and fields.
+  ///
+  /// ## Returns
+  /// An unmodifiable [Map<String, String>] where:
+  /// - Keys are placeholder IDs (e.g., "123", "456")
+  /// - Values are chunk field keys (e.g., "name", "email")
+  ///
+  /// ## Usage
+  /// ```dart
+  /// final mapping = userObject.placeholderIdToFieldKey;
+  /// print('Placeholder "123" maps to field "${mapping["123"]}"');
+  /// ```
+  Map<String, String> get placeholderIdToFieldKey =>
+      Map.unmodifiable(_placeholderIdToFieldKey);
+
   /// Stream of chunks with preliminary parsing: if there is a ChunkField with deserializer for the key, then parses the value
   Stream<dynamic> get _chunkUpdateStream => _processor.dataStream.map((chunk) {
         dynamic result;
-        chunk.forEach((key, value) {
-          final field = _chunkFields.values.firstWhereOrNull(
-            (f) => f.placeholderId == key,
-          );
+        chunk.forEach((placeholderId, value) {
+          final fieldKey = _placeholderIdToFieldKey[placeholderId];
+          final field = fieldKey != null ? _chunkFields[fieldKey] : null;
 
           if (field != null) {
             if (field.isResolved) {
@@ -387,13 +413,6 @@ final class ChunkObject<T> {
     return states.values.every((state) => state == ChunkState.loaded);
   }
 
-  /// Registers chunk field for typed access
-  void registerChunkField(String key, ChunkField field) {
-    _chunkFields[key] = field;
-    _stateManager.registerPlaceholder(field.placeholderId);
-    _invalidateCache();
-  }
-
   /// Gets chunk field by key
   ChunkField<V> getChunkField<V>(String key) {
     final field = _chunkFields[key];
@@ -404,7 +423,15 @@ final class ChunkObject<T> {
   }
 
   /// Processes incoming chunk data
-  void processChunk(Map<String, dynamic> chunk) =>
+  ///
+  /// This method is asynchronous and should be awaited to ensure proper
+  /// completion of chunk processing and field updates.
+  ///
+  /// ## Example
+  /// ```dart
+  /// await userObject.processChunk({'123': 'John Doe'});
+  /// ```
+  Future<void> processChunk(Map<String, dynamic> chunk) =>
       _processor.processChunk(chunk);
 
   /// Processes chunk stream
@@ -459,10 +486,6 @@ final class ChunkObject<T> {
       return null;
     }
   }
-
-  /// Checks if there are minimal data for deserialization
-  bool _hasMinimalDataForDeserialization(Map<String, dynamic> json) =>
-      json.values.any((value) => !_resolver.isPlaceholder(value));
 
   /// Gets a map of all chunk states
   Map<String, ChunkState> _getChunkStates() {
@@ -527,6 +550,8 @@ final class ChunkObject<T> {
     for (final field in _chunkFields.values) {
       field.reset();
     }
+    _chunkFields.clear();
+    _placeholderIdToFieldKey.clear();
     _invalidateCache();
   }
 
@@ -535,6 +560,7 @@ final class ChunkObject<T> {
     _processor.close();
     _stateManager.clear();
     _chunkFields.clear();
+    _placeholderIdToFieldKey.clear();
   }
 
   /// Handles chunk update
@@ -543,22 +569,23 @@ final class ChunkObject<T> {
 
     // Обновляем соответствующие чанк поля
     for (final entry in chunk.entries) {
-      final field = _chunkFields.entries
-          .firstWhereOrNull(
-            (f) => f.key == entry.key,
-          )
-          ?.value;
+      final placeholderId = entry.key;
+      final chunkData = entry.value;
+
+      // Find corresponding chunk field using placeholder ID mapping
+      final fieldKey = _placeholderIdToFieldKey[placeholderId];
+      final field = fieldKey != null ? _chunkFields[fieldKey] : null;
 
       if (field != null && !field.isResolved) {
         try {
-          field.resolve(entry.value);
+          field.resolve(chunkData);
         } catch (e, s) {
           _processor.addError(e, s);
         }
       }
 
       // Always update stateManager for placeholder resolution
-      _stateManager.resolvePlaceholder(entry.key, entry.value);
+      _stateManager.resolvePlaceholder(placeholderId, chunkData);
     }
   }
 
