@@ -4,6 +4,8 @@ version: 1.0.0
 repository: https://github.com/Duit-Foundation/chunk_norris
 issue_tracker: https://github.com/Duit-Foundation/chunk_norris/issues
 homepage: https://duit.pro/en
+funding:
+  - https://boosty.to/duit_foundation
 
 environment:
   sdk: ^3.0.0
