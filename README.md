@@ -1,4 +1,4 @@
-# Chunk Norris 🥋
+# Chunk Norris 🥋 [![Coverage Status](https://coveralls.io/repos/github/Duit-Foundation/chunk_norris/badge.svg?branch=main)](https://coveralls.io/github/Duit-Foundation/chunk_norris?branch=main)
 
 > **Chuck Norris doesn't wait for JSON to load. JSON loads instantly when Chuck Norris needs it.**
 >
