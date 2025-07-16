@@ -492,7 +492,7 @@ void main() {
         expect(receivedChunks[0], equals({'123': 'Content here'}));
         expect(receivedChunks[1], equals({'456': 'Other data'}));
 
-        subscription?.cancel();
+        subscription.cancel();
       });
 
       test('should handle errors through onError callback', () async {
@@ -514,7 +514,7 @@ void main() {
 
         expect(receivedErrors.length, greaterThan(0));
 
-        subscription?.cancel();
+        subscription.cancel();
         await controller.close();
       });
     });
