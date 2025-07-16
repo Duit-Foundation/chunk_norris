@@ -123,15 +123,66 @@ Future<void> chunkObjectExample() async {
 Future<void> chunkJsonExample() async {
   print('\n=== ChunkJson example ===');
 
-  final json = ChunkJson.fromJson({
+  final chunkedJson = ChunkJson.fromJson({
     'name': 'John Doe',
     'age': 30,
     'data': '\$1',
     'meta': '\$2',
     'some': '\$3',
   });
+
+  final subscription = chunkedJson.listenUpdateStream((chunk) {
+    print('Chunk update: $chunk');
+    print('Current resolved json: ${chunkedJson.getResolvedData()}');
+    print(
+        'States: data=${chunkedJson.getKeyState('data')}, meta=${chunkedJson.getKeyState('meta')}, some=${chunkedJson.getKeyState('some')}');
+  }, onError: (error) {
+    print('Error: $error');
+  }, onDone: () {
+    print('Stream is done');
+  });
+
+  await Future.delayed(const Duration(seconds: 1));
+
+  await chunkedJson.processChunk({
+    '1': {
+      'address': '123 Main St',
+      'phone': '123-456-7890',
+    },
+  });
+
+  await Future.delayed(const Duration(seconds: 1));
+
+  await chunkedJson.processChunk({
+    '2': {
+      'meta1': 'value1',
+      'meta2': 'value2',
+    },
+  });
+
+  await Future.delayed(const Duration(seconds: 1));
+
+  await chunkedJson.processChunk({
+    '3': {
+      'some': 'value3',
+    },
+  });
+
+  // Ждём полной загрузки всех чанков
+  final resolved = await chunkedJson.waitForAllData();
+  print('All chunks resolved! Final json: $resolved');
+
+  // Пример асинхронного получения значения
+  final data = await chunkedJson.getValueAsync('data');
+  print('Async loaded data: $data');
+
+  subscription.cancel();
+  chunkedJson.dispose();
+
+  print("=" * 30);
 }
 
 void main() async {
+  await chunkJsonExample();
   await chunkObjectExample();
 }

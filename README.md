@@ -11,7 +11,7 @@
 ## 🚀 Features
 
 - **Progressive Loading**: Load JSON data incrementally as chunks arrive
-- **Placeholder System**: Use `$1`, `$2`, etc. as placeholders that get resolved dynamically
+- **Placeholder System**: Use `$1`, `$2` (or custom placeholder patterns), etc. as placeholders that get resolved dynamically
 - **Type Safety**: Strongly typed access to your data with automatic deserialization
 - **Streaming Support**: Built-in support for data streams (SSE, WebSockets, etc.)
 - **State Management**: Track loading states (pending, loaded, error) for each chunk
