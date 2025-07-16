@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'chunk_state_manager.dart';
 import 'placeholder_resolver.dart';
-import 'processor.dart';
+import 'chunk_processor.dart';
 import 'state.dart';
 import 'chunk_field.dart';
 

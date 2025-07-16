@@ -1,5 +1,5 @@
 export 'chunk_json.dart';
-export 'processor.dart';
+export 'chunk_processor.dart';
 export 'chunk_field.dart';
 export 'chunk_object.dart';
 export 'state.dart';

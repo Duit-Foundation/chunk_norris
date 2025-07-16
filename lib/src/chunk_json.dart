@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:chunk_norris/src/chunk_state_manager.dart';
 import 'package:chunk_norris/src/placeholder_resolver.dart';
-import 'package:chunk_norris/src/processor.dart';
+import 'package:chunk_norris/src/chunk_processor.dart';
 import 'package:chunk_norris/src/state.dart';
 
 /// A lightweight wrapper for progressive JSON hydration using chunked data loading.
