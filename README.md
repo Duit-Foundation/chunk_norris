@@ -121,6 +121,25 @@ void main() async {
     },
   );
 
+  // userObject.listenChunkStates(onData) listen chunk state change
+  // userObject.listenChunkUpdate(onData) listen chunk update with resolved data
+  // userObject.listenRawChunkUpdate(onData) listen chunk update with raw data
+  // userObject.listenObjectUpdate(onData) listen root object update
+
+  // listen when all chunks resolved
+  userObject.listenObjectResolve(
+    (user) {
+      print("All chunks resolved!");
+    },
+    onError: (error) {
+      print("Error: $error");
+    },
+    onDone: () {
+      print("Stream is done");
+    },
+  );
+
+
   // Wait for complete object resolution
   await userObject.waitForData();
   final user = userObject.getData();
