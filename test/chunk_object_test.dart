@@ -243,7 +243,8 @@ void main() {
         expect(user.email, equals('john@example.com'));
       });
 
-      test('should throw error when getData called on incomplete data', () async {
+      test('should throw error when getData called on incomplete data',
+          () async {
         final json = {
           'name': '\$123',
           'age': 30,
@@ -679,7 +680,8 @@ void main() {
     });
 
     group('toString', () {
-      test('should provide meaningful string representation when resolved', () async {
+      test('should provide meaningful string representation when resolved',
+          () async {
         final json = {
           'name': 'John Doe',
           'age': 30,
@@ -695,7 +697,8 @@ void main() {
         expect(stringRepresentation, contains('John Doe'));
       });
 
-      test('should provide meaningful string representation when pending', () async {
+      test('should provide meaningful string representation when pending',
+          () async {
         final json = {
           'name': '\$123',
           'age': 30,

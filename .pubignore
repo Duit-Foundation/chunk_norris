@@ -1,0 +1,6 @@
+example/
+test/
+.github/
+coverage/
+build/
+.dart_tool
